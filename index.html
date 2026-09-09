@@ -93,7 +93,24 @@ tr.clk{cursor:pointer} tr.clk:hover td{background:var(--wash)}
 .hidden{display:none!important}
 .legend{display:flex;flex-wrap:wrap;gap:4px 14px;font-size:12px;color:var(--ink2);margin-top:6px}
 .legend i{display:inline-block;width:14px;height:3px;border-radius:2px;vertical-align:middle;margin-right:5px}
-@media (max-width:640px){ header,.filters,main,.chips{padding-left:12px;padding-right:12px} .kpi .v{font-size:20px} .chart{height:240px} }
+.mbar{display:none}
+.mob{display:none}
+@media (max-width:760px){
+  header{padding:10px 12px 4px;gap:4px 10px} header h1{font-size:17px} header .meta{font-size:11px;flex-basis:100%;white-space:nowrap;overflow:hidden;text-overflow:ellipsis} header .right{margin-left:0}
+  header .right button{height:32px;padding:4px 10px;font-size:13px}
+  .mbar{display:flex;align-items:center;gap:8px;position:sticky;top:0;z-index:21;background:var(--page);border-bottom:1px solid var(--border);padding:8px 12px}
+  .mbar button{height:34px;padding:4px 12px;font-weight:600;white-space:nowrap;flex:none} .mbar button.has{background:var(--infobg);color:var(--info);border-color:transparent}
+  .mbar .info{font-size:12px;color:var(--muted);overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+  .filters{display:none;position:static;padding:10px 12px;max-height:75vh;overflow:auto;gap:8px}
+  .filters.open{display:flex}
+  .f{min-width:calc(50% - 5px);flex:1 1 calc(50% - 5px)} .f.wide{min-width:100%}
+  .mob{display:block} .mob button{width:100%;height:40px;font-weight:600}
+  main,.chips{padding-left:12px;padding-right:12px} main{gap:10px}
+  .kpis{grid-template-columns:repeat(2,1fr);gap:8px} .kpi{padding:10px 12px;min-height:0} .kpi .v{font-size:19px} .kpi .l{font-size:10.5px}
+  .grid{grid-template-columns:1fr} .card{padding:12px} .chart{height:230px} .chart.tall{height:260px}
+  .card .hd .tools{margin-left:0;flex-basis:100%} .card .hd .tools button{padding:2px 8px}
+  .tbl{max-height:420px!important} td.name{max-width:180px}
+}
 </style>
 </head>
 <body>
@@ -105,6 +122,7 @@ tr.clk{cursor:pointer} tr.clk:hover td{background:var(--wash)}
   </div>
 </header>
 
+<div class="mbar"><button id="btnFilters">☰ Filtri</button><span class="info" id="mbarInfo"></span></div>
 <div class="filters" id="filters">
   <div class="f"><label>Periodo</label><select id="fPeriod"></select></div>
   <div class="f"><label>Mese</label><select id="fMonth"><option value="">Tutti</option></select></div>
@@ -113,7 +131,9 @@ tr.clk{cursor:pointer} tr.clk:hover td{background:var(--wash)}
   <div class="f wide"><label>Prodotto (codice o descrizione)</label><input id="fProduct" placeholder="Cerca articolo…" autocomplete="off"><div class="dd" id="ddProduct"></div></div>
   <div class="f"><label>Fornitore</label><input id="fSupplier" placeholder="Tutti" autocomplete="off" style="min-width:150px"><div class="dd" id="ddSupplier"></div></div>
   <div class="f"><label>Famiglia</label><select id="fFamily"><option value="">Tutte</option></select></div>
+  <div class="f"><label>Classe merceologica</label><select id="fClass"><option value="">Tutte</option></select></div>
   <div class="f"><label>&nbsp;</label><button id="btnReset" class="ghost">✕ Azzera filtri</button></div>
+  <div class="f mob"><button id="btnDone" class="primary">✓ Applica e chiudi</button></div>
 </div>
 <div class="chips" id="chips"></div>
 
@@ -136,8 +156,12 @@ tr.clk{cursor:pointer} tr.clk:hover td{background:var(--wash)}
       <div class="tbl" style="margin-top:10px"><table id="tAgents"></table></div>
     </div>
     <div class="card">
-      <div class="hd"><h2>Fatturato per famiglia di prodotto</h2><span class="sub">periodo selezionato</span></div>
+      <div class="hd"><h2>Fatturato per famiglia di prodotto</h2><span class="sub">prime 14 · clic su una barra per filtrare</span></div>
       <div class="chart"><canvas id="chFamily"></canvas></div>
+    </div>
+    <div class="card">
+      <div class="hd"><h2>Fatturato per classe merceologica</h2><span class="sub">periodo selezionato</span></div>
+      <div class="chart"><canvas id="chClass"></canvas></div>
     </div>
     <div class="card">
       <div class="hd"><h2>Primi 12 fornitori</h2><span class="sub">per fatturato nel periodo</span></div>
@@ -186,7 +210,7 @@ tr.clk{cursor:pointer} tr.clk:hover td{background:var(--wash)}
 <script>
 /* ============================================================ DATI E STATO */
 let D=null, X=null;            // D = data.json, X = indici derivati
-const S={period:'R12',month:'',agent:'',client:-1,product:-1,supplier:-1,family:-1,
+const S={period:'R12',month:'',agent:'',client:-1,product:-1,supplier:-1,family:-1,cls:-1,
          trendMode:'years',clientTab:'all',prodMode:'v',sortC:['v',-1],sortP:['v',-1]};
 const MESI=['Gen','Feb','Mar','Apr','Mag','Giu','Lug','Ago','Set','Ott','Nov','Dic'];
 const MESI_L=['Gennaio','Febbraio','Marzo','Aprile','Maggio','Giugno','Luglio','Agosto','Settembre','Ottobre','Novembre','Dicembre'];
@@ -207,11 +231,11 @@ function init(data){
   const C=D.clients.length, A=D.articles.length, M=D.yms.length;
   X={C,A,M,
      cAgent:new Int16Array(C), cDir:new Uint8Array(C),
-     aFam:new Int16Array(A), aSup:new Int32Array(A), aUm:new Uint8Array(A), aIrca:new Uint8Array(A), aM:new Uint8Array(A),
+     aFam:new Int16Array(A), aCls:new Int16Array(A), aSup:new Int32Array(A), aUm:new Uint8Array(A), aIrca:new Uint8Array(A), aM:new Uint8Array(A),
      c:Int32Array.from(D.cube.c), r:Int32Array.from(D.cube.r), m:Int16Array.from(D.cube.m), u:Uint8Array.from(D.cube.u),
      v:Float64Array.from(D.cube.v), q:Float64Array.from(D.cube.q), l:Float64Array.from(D.cube.l), n:Int32Array.from(D.cube.n)};
   D.clients.forEach((c,i)=>{X.cAgent[i]=c[2];X.cDir[i]=c[3];});
-  D.articles.forEach((a,i)=>{X.aFam[i]=a[2];X.aSup[i]=a[3];X.aUm[i]=a[4];X.aIrca[i]=a[5];X.aM[i]=a[6];});
+  D.articles.forEach((a,i)=>{X.aFam[i]=a[2];X.aCls[i]=a[7]||0;X.aSup[i]=a[3];X.aUm[i]=a[4];X.aIrca[i]=a[5];X.aM[i]=a[6];});
   X.lastFull=D.yms.indexOf(D.meta.ultimoMese);
   X.years=[...new Set(D.yms.map(y=>y.slice(0,4)))];
   X.clientSearch=D.clients.map(c=>(c[0]+' '+c[1]).toLowerCase());
@@ -248,7 +272,7 @@ function periodSets(){
 /* ============================================================ MOTORE DI CALCOLO */
 function compute(){
   const {C,A,M}=X, P=periodSets(), cur=P.cur, prev=P.prev;
-  const ag=S.agent===''?-1:+S.agent, cl=S.client, pr=S.product, su=S.supplier, fa=S.family;
+  const ag=S.agent===''?-1:+S.agent, cl=S.client, pr=S.product, su=S.supplier, fa=S.family, ks=S.cls;
   const T={v:0,pv:0,kg:0,lt:0,pz:0,pkg:0,plt:0,ppz:0,vI:0,pvI:0,kgI:0,ltI:0,pzI:0,vM:0,pvM:0,l:0,pl:0,n:0,pn:0};
   const byM=Array.from({length:M},()=>({v:0,vI:0,kg:0,lt:0,pz:0,vM:0,l:0,n:0,cli:0}));
   const cV=new Float64Array(C),cPV=new Float64Array(C),cKg=new Float64Array(C),cLt=new Float64Array(C),cPz=new Float64Array(C),
@@ -256,12 +280,12 @@ function compute(){
         cMon=new Uint8Array(C*M), cLastAmt=new Float64Array(C);
   const aV=new Float64Array(A),aPV=new Float64Array(A),aQ=new Float64Array(A),aPQ=new Float64Array(A),aL=new Float64Array(A),
         aNc=new Int32Array(A),aLastC=new Int32Array(A).fill(-1);
-  const nF=D.families.length,nS=D.suppliers.length,nA=D.agents.length;
-  const fV=new Float64Array(nF),fPV=new Float64Array(nF),sV=new Float64Array(nS),sPV=new Float64Array(nS),
+  const nF=D.families.length,nK=(D.classes||[]).length,nS=D.suppliers.length,nA=D.agents.length;
+  const fV=new Float64Array(nF),fPV=new Float64Array(nF),kV=new Float64Array(nK),sV=new Float64Array(nS),sPV=new Float64Array(nS),
         gV=new Float64Array(nA),gPV=new Float64Array(nA),gL=new Float64Array(nA),gPL=new Float64Array(nA),gVM=new Float64Array(nA),gVI=new Float64Array(nA),gPVI=new Float64Array(nA),gKg=new Float64Array(nA);
   const yr=D.yms.map(y=>+y.slice(0,4)-+X.years[0]), mo=D.yms.map(y=>+y.slice(5)-1), nY=X.years.length;
   const season=new Float64Array(nY*12), ircaM=new Float64Array(M);
-  const {c,r,m,u,v,q,l,n}=X, cAgent=X.cAgent, aFam=X.aFam, aSup=X.aSup, aUm=X.aUm, aIrca=X.aIrca, aM=X.aM;
+  const {c,r,m,u,v,q,l,n}=X, cAgent=X.cAgent, aFam=X.aFam, aCls=X.aCls, aSup=X.aSup, aUm=X.aUm, aIrca=X.aIrca, aM=X.aM;
   const N=c.length;
   for(let i=0;i<N;i++){
     const ci=c[i], ri=r[i];
@@ -270,6 +294,7 @@ function compute(){
     if(pr>=0 && ri!==pr) continue;
     if(su>=0 && aSup[ri]!==su) continue;
     if(fa>=0 && aFam[ri]!==fa) continue;
+    if(ks>=0 && aCls[ri]!==ks) continue;
     const mi=m[i], vv=v[i], qq=q[i], ll=l[i], nn=n[i], isM=aM[ri], isI=aIrca[ri], um=u[i], qa=(um===aUm[ri])?qq:0;
     // storico completo (per trend, stagionalita', stato cliente)
     const bm=byM[mi]; bm.v+=vv; bm.l+=ll; bm.n+=nn; if(isI){bm.vI+=vv;} if(isM){bm.vM+=vv;}
@@ -277,7 +302,7 @@ function compute(){
     season[yr[mi]*12+mo[mi]]+=vv;
     if(vv>0){ cMon[ci*M+mi]=1; if(cFirst[ci]<0||mi<cFirst[ci])cFirst[ci]=mi; if(mi>cLast[ci])cLast[ci]=mi; }
     if(cur[mi]){
-      T.v+=vv; T.l+=ll; T.n+=nn; cV[ci]+=vv; cL[ci]+=ll; cN[ci]+=nn; aV[ri]+=vv; aL[ri]+=ll; fV[aFam[ri]]+=vv; sV[aSup[ri]]+=vv;
+      T.v+=vv; T.l+=ll; T.n+=nn; cV[ci]+=vv; cL[ci]+=ll; cN[ci]+=nn; aV[ri]+=vv; aL[ri]+=ll; fV[aFam[ri]]+=vv; kV[aCls[ri]]+=vv; sV[aSup[ri]]+=vv;
       gV[cAgent[ci]]+=vv; gL[cAgent[ci]]+=ll;
       if(aLastC[ri]!==ci){aLastC[ri]=ci; aNc[ri]++;}
       if(isM){T.vM+=vv; gVM[cAgent[ci]]+=vv;}
@@ -304,7 +329,7 @@ function compute(){
     else if(cPV[ci]>=1000 && cV[ci]/cPV[ci]-1<=-0.2) cStatus[ci]=2;
     else if(cPV[ci]>=1000 && cV[ci]/cPV[ci]-1>=0.2) cStatus[ci]=3;
   }
-  return {P,T,byM,gVI,gPVI,gKg,cV,cPV,cKg,cLt,cPz,cL,cN,cVI,cFirst,cLast,cStatus,cM12,cM3,aV,aPV,aQ,aPQ,aL,aNc,fV,fPV,sV,sPV,gV,gPV,gL,gPL,gVM,season,nY,nCli,nCliPrev};
+  return {P,T,byM,kV,gVI,gPVI,gKg,cV,cPV,cKg,cLt,cPz,cL,cN,cVI,cFirst,cLast,cStatus,cM12,cM3,aV,aPV,aQ,aPQ,aL,aNc,fV,fPV,sV,sPV,gV,gPV,gL,gPL,gVM,season,nY,nCli,nCliPrev};
 }
 
 /* ============================================================ FILTRI UI */
@@ -316,14 +341,18 @@ function buildFilters(){
   const mo=$('fMonth'); MESI_L.forEach((n,i)=>mo.append(new Option(n,String(i+1).padStart(2,'0'))));
   const a=$('fAgent'); D.agents.forEach((n,i)=>a.append(new Option(n,i)));
   const f=$('fFamily'); D.families.forEach((n,i)=>f.append(new Option(n,i)));
+  const kk=$('fClass'); (D.classes||[]).forEach((n,i)=>kk.append(new Option(n,i)));
+  kk.onchange=()=>{S.cls=kk.value===''?-1:+kk.value;update();};
   p.onchange=()=>{S.period=p.value;update();};
   mo.onchange=()=>{S.month=mo.value;update();};
   a.onchange=()=>{S.agent=a.value;update();};
   f.onchange=()=>{S.family=f.value===''?-1:+f.value;update();};
-  combo('fClient','ddClient',X.clientSearch,i=>[D.clients[i][1],D.clients[i][0]+' · '+D.agents[D.clients[i][2]]],i=>{S.client=i;S.agent=String(D.clients[i][2]);update();});
-  combo('fProduct','ddProduct',X.artSearch,i=>[D.articles[i][1],D.articles[i][0]+' · '+D.suppliers[D.articles[i][3]]],i=>{S.product=i;update();});
-  combo('fSupplier','ddSupplier',X.supSearch,i=>[D.suppliers[i],''],i=>{S.supplier=i;update();});
-  $('btnReset').onclick=()=>{Object.assign(S,{period:'R12',month:'',agent:'',client:-1,product:-1,supplier:-1,family:-1});update();};
+  combo('fClient','ddClient',X.clientSearch,i=>[D.clients[i][1],D.clients[i][0]+' · '+D.agents[D.clients[i][2]]],i=>{S.client=i;S.agent=String(D.clients[i][2]);update();if(isMobile())closeFilters();});
+  combo('fProduct','ddProduct',X.artSearch,i=>[D.articles[i][1],D.articles[i][0]+' · '+D.suppliers[D.articles[i][3]]],i=>{S.product=i;update();if(isMobile())closeFilters();});
+  combo('fSupplier','ddSupplier',X.supSearch,i=>[D.suppliers[i],''],i=>{S.supplier=i;update();if(isMobile())closeFilters();});
+  $('btnReset').onclick=()=>{Object.assign(S,{period:'R12',month:'',agent:'',client:-1,product:-1,supplier:-1,family:-1,cls:-1});update();};
+  $('btnFilters').onclick=()=>{$('filters').classList.toggle('open');};
+  $('btnDone').onclick=closeFilters;
   $('btnExport').onclick=exportExcel;
   document.querySelectorAll('[data-tm]').forEach(b=>b.onclick=()=>{S.trendMode=b.dataset.tm;update();});
   document.querySelectorAll('[data-ct]').forEach(b=>b.onclick=()=>{S.clientTab=b.dataset.ct;renderClients();});
@@ -345,8 +374,10 @@ function combo(inpId,ddId,search,labelOf,onPick){
     else if(e.key==='Enter'){ if(hi>=0)pick(hi); else if(rows.length)pick(0); return; } else if(e.key==='Escape'){dd.style.display='none';return;} else return;
     [...rows].forEach((r,k)=>r.classList.toggle('hi',k===hi)); rows[hi]&&rows[hi].scrollIntoView({block:'nearest'}); e.preventDefault(); };
 }
+const isMobile=()=>window.matchMedia('(max-width:760px)').matches;
+function closeFilters(){ $('filters').classList.remove('open'); }
 function syncFilters(){
-  $('fPeriod').value=S.period; $('fMonth').value=S.month; $('fAgent').value=S.agent; $('fFamily').value=S.family<0?'':S.family;
+  $('fPeriod').value=S.period; $('fMonth').value=S.month; $('fAgent').value=S.agent; $('fFamily').value=S.family<0?'':S.family; $('fClass').value=S.cls<0?'':S.cls;
   $('fClient').value=S.client<0?'':D.clients[S.client][1];
   $('fProduct').value=S.product<0?'':D.articles[S.product][1];
   $('fSupplier').value=S.supplier<0?'':D.suppliers[S.supplier];
@@ -357,14 +388,18 @@ function syncFilters(){
   if(S.product>=0) chip('Prodotto: '+D.articles[S.product][0]+' '+D.articles[S.product][1],()=>{S.product=-1;update();});
   if(S.supplier>=0) chip('Fornitore: '+D.suppliers[S.supplier],()=>{S.supplier=-1;update();});
   if(S.family>=0) chip('Famiglia: '+D.families[S.family],()=>{S.family=-1;update();});
+  if(S.cls>=0) chip('Classe: '+D.classes[S.cls],()=>{S.cls=-1;update();});
   if(S.month) chip('Mese: '+MESI_L[+S.month-1],()=>{S.month='';update();});
+  const nAct=(S.agent!==''?1:0)+(S.client>=0?1:0)+(S.product>=0?1:0)+(S.supplier>=0?1:0)+(S.family>=0?1:0)+(S.cls>=0?1:0)+(S.month?1:0)+(S.period!=='R12'?1:0);
+  const bf=$('btnFilters'); bf.textContent='☰ Filtri'+(nAct?' ('+nAct+')':''); bf.classList.toggle('has',nAct>0);
+  $('mbarInfo').textContent=(S.agent!==''?D.agents[+S.agent]+' · ':'')+periodSets().label;
   document.querySelectorAll('[data-tm]').forEach(b=>b.classList.toggle('on',b.dataset.tm===S.trendMode));
   document.querySelectorAll('[data-ct]').forEach(b=>b.classList.toggle('on',b.dataset.ct===S.clientTab));
   document.querySelectorAll('[data-pm]').forEach(b=>b.classList.toggle('on',b.dataset.pm===S.prodMode));
   // link condivisibile
   const h=new URLSearchParams(); ['period','month','agent'].forEach(k=>{if(S[k]!==''&&!(k==='period'&&S[k]==='R12'))h.set(k,S[k]);});
   if(S.client>=0)h.set('cliente',D.clients[S.client][0]); if(S.product>=0)h.set('art',D.articles[S.product][0]);
-  if(S.supplier>=0)h.set('forn',D.suppliers[S.supplier]); if(S.family>=0)h.set('fam',D.families[S.family]);
+  if(S.supplier>=0)h.set('forn',D.suppliers[S.supplier]); if(S.family>=0)h.set('fam',D.families[S.family]); if(S.cls>=0)h.set('classe',D.classes[S.cls]);
   history.replaceState(null,'','#'+h.toString());
 }
 function readHash(){
@@ -374,12 +409,13 @@ function readHash(){
   if(h.get('art')){const i=D.articles.findIndex(a=>a[0]===h.get('art'));if(i>=0)S.product=i;}
   if(h.get('forn')){const i=D.suppliers.indexOf(h.get('forn'));if(i>=0)S.supplier=i;}
   if(h.get('fam')){const i=D.families.indexOf(h.get('fam'));if(i>=0)S.family=i;}
+  if(h.get('classe')){const i=(D.classes||[]).indexOf(h.get('classe'));if(i>=0)S.cls=i;}
 }
 </script>
 <script>
 /* ============================================================ RENDER */
 let R=null; const charts={};
-function update(){ syncFilters(); R=compute(); renderKpis(); renderTrend(); renderAgents(); renderAgentsTable(); renderFamily(); renderSupplier(); renderDisc(); renderClients(); renderProducts(); renderIrca(); renderM(); renderDiscClients(); renderMonthly(); }
+function update(){ syncFilters(); R=compute(); renderKpis(); renderTrend(); renderAgents(); renderAgentsTable(); renderFamily(); renderClass(); renderSupplier(); renderDisc(); renderClients(); renderProducts(); renderIrca(); renderM(); renderDiscClients(); renderMonthly(); }
 const delta=(a,b)=>(b>0&&isFinite(a/b))?a/b-1:null;
 
 function renderKpis(){
@@ -447,12 +483,24 @@ function renderAgentsTable(){
     {k:'irca',h:'Quota IRCA',n:1,f:r=>fPctAbs(r.irca)},{k:'sc',h:'Sconto',n:1,f:r=>fPctAbs(r.sc)},{k:'sil',h:'Silenziosi',n:1},{k:'nw',h:'Nuovi',n:1}],rows,null,null,r=>{S.agent=String(r.i);update();});
 }
 function renderFamily(){
-  const {fV}=R, idx=D.families.map((_,i)=>i).filter(i=>fV[i]>0).sort((a,b)=>fV[b]-fV[a]);
-  hbar('chFamily',idx.map(i=>D.families[i]),[{label:'Fatturato',data:idx.map(i=>fV[i]),backgroundColor:css('--s1')}]);
+  const {fV}=R, idx=D.families.map((_,i)=>i).filter(i=>fV[i]>0).sort((a,b)=>fV[b]-fV[a]).slice(0,14);
+  const short=s=>s.length>38?s.slice(0,36)+'…':s;
+  const ch=hbar('chFamily',idx.map(i=>short(D.families[i])),[{label:'Fatturato',data:idx.map(i=>fV[i]),backgroundColor:css('--s1')}]);
+  ch.options.plugins.tooltip.callbacks.title=items=>D.families[idx[items[0].dataIndex]];
+  ch.options.onClick=(e,els)=>{ if(els.length){S.family=idx[els[0].index];update();} }; ch.update();
+}
+function renderClass(){
+  const {kV}=R, idx=(D.classes||[]).map((_,i)=>i).filter(i=>kV[i]>0).sort((a,b)=>kV[b]-kV[a]).slice(0,14);
+  const short=s=>s.length>38?s.slice(0,36)+'…':s;
+  const ch=hbar('chClass',idx.map(i=>short(D.classes[i])),[{label:'Fatturato',data:idx.map(i=>kV[i]),backgroundColor:css('--s1')}]);
+  ch.options.plugins.tooltip.callbacks.title=items=>D.classes[idx[items[0].dataIndex]];
+  ch.options.onClick=(e,els)=>{ if(els.length){S.cls=idx[els[0].index];update();} }; ch.update();
 }
 function renderSupplier(){
   const {sV}=R, idx=D.suppliers.map((_,i)=>i).filter(i=>sV[i]>0&&D.suppliers[i]!=='ALTRO'&&D.suppliers[i]!=='ARTICOLO M').sort((a,b)=>sV[b]-sV[a]).slice(0,12);
-  const ch=hbar('chSupplier',idx.map(i=>D.suppliers[i]),[{label:'Fatturato',data:idx.map(i=>sV[i]),backgroundColor:css('--s1')}]);
+  const short=s=>s.length>26?s.slice(0,24)+'…':s;
+  const ch=hbar('chSupplier',idx.map(i=>short(D.suppliers[i])),[{label:'Fatturato',data:idx.map(i=>sV[i]),backgroundColor:css('--s1')}]);
+  ch.options.plugins.tooltip.callbacks.title=items=>D.suppliers[idx[items[0].dataIndex]];
   ch.options.onClick=(e,els)=>{ if(els.length){S.supplier=idx[els[0].index];update();} }; ch.update();
 }
 function renderDisc(){
@@ -501,7 +549,7 @@ const UMN=['pz','kg','lt'];
 function productRows(){
   const {aV,aPV,aQ,aPQ,aL,aNc}=R, rows=[];
   for(let i=0;i<X.A;i++){ if(aV[i]<=0&&aPV[i]<=0)continue; const a=D.articles[i]; if(S.prodMode==='irca'&&!a[5])continue;
-    rows.push({i,code:a[0],name:a[1],sup:D.suppliers[a[3]],fam:D.families[a[2]],um:a[6]?'€':UMN[a[4]],irca:!!a[5],v:aV[i],pv:aPV[i],d:delta(aV[i],aPV[i]),q:aQ[i],pq:aPQ[i],dq:delta(aQ[i],aPQ[i]),nc:aNc[i],sc:aL[i]>0?1-aV[i]/aL[i]:null,prz:aQ[i]>0?aV[i]/aQ[i]:null}); }
+    rows.push({i,code:a[0],name:a[1],sup:D.suppliers[a[3]],fam:D.families[a[2]],cls:(D.classes||[])[a[7]]||'',um:a[6]?'€':UMN[a[4]],irca:!!a[5],v:aV[i],pv:aPV[i],d:delta(aV[i],aPV[i]),q:aQ[i],pq:aPQ[i],dq:delta(aQ[i],aPQ[i]),nc:aNc[i],sc:aL[i]>0?1-aV[i]/aL[i]:null,prz:aQ[i]>0?aV[i]/aQ[i]:null}); }
   return rows;
 }
 function renderProducts(){
@@ -511,7 +559,7 @@ function renderProducts(){
   const scope=S.client>=0?'del cliente '+D.clients[S.client][1]:S.agent!==''?"dell'agente "+D.agents[+S.agent]:'di tutta l\'azienda';
   $('subProducts').textContent=rows.length+' articoli '+scope+' · periodo '+R.P.label+(S.prodMode==='irca'?' · solo catalogo IRCA':'');
   const max=Math.max(1,...rows.map(r=>r.v));
-  table('tProducts',[{k:'code',h:'Codice'},{k:'name',h:'Articolo',cls:'name',f:r=>{const s=el('span',null,r.name+' ');if(r.irca)s.append(Object.assign(el('span','badge b-info','IRCA')));return s;}},{k:'sup',h:'Fornitore'},{k:'fam',h:'Famiglia'},
+  table('tProducts',[{k:'code',h:'Codice'},{k:'name',h:'Articolo',cls:'name',f:r=>{const s=el('span',null,r.name+' ');if(r.irca)s.append(Object.assign(el('span','badge b-info','IRCA')));return s;}},{k:'sup',h:'Fornitore'},{k:'fam',h:'Famiglia'},{k:'cls',h:'Classe',cls:'name'},
     {k:'v',h:'Fatturato',n:1,f:r=>barcell(r.v,max)},{k:'d',h:'Δ €',n:1,f:r=>dcell(r.d)},{k:'q',h:'Quantità',n:1,f:r=>r.um==='€'?'—':fNum1.format(r.q)+' '+r.um},{k:'dq',h:'Δ qtà',n:1,f:r=>r.um==='€'?'—':dcell(r.dq)},
     {k:'prz',h:'Prezzo medio',n:1,f:r=>r.prz==null||r.um==='€'?'—':fEur2.format(r.prz)+'/'+r.um},{k:'sc',h:'Sconto',n:1,f:r=>fPctAbs(r.sc)},{k:'nc',h:'Clienti',n:1}],
     rows.slice(0,300),S.sortP,k=>{S.sortP=[k,S.sortP[0]===k?-S.sortP[1]:-1];renderProducts();},r=>{S.product=r.i;update();window.scrollTo({top:0,behavior:'smooth'});});
@@ -556,7 +604,7 @@ function exportExcel(){
   XLSX.utils.book_append_sheet(wb,XLSX.utils.aoa_to_sheet([['DAV · Cruscotto Vendite Agenti · esportato il '+new Date().toLocaleDateString('it-IT')],[],...filt]),'Riepilogo');
   const cr=R.clientRowsCache.map(r=>({Codice:r.code,Cliente:r.name,Agente:r.agent,Stato:STAT[r.st][0]||'Regolare',Fatturato:r.v,'Fatturato prec.':r.pv,'Delta %':r.d,KG:r.kg,LT:r.lt,Pezzi:r.pz,'Fatturato IRCA':r.irca,'Sconto medio':r.sc,Righe:r.n,'Ultimo acquisto':r.last||''}));
   XLSX.utils.book_append_sheet(wb,XLSX.utils.json_to_sheet(cr),'Clienti');
-  const pr=R.productRowsCache.map(r=>({Codice:r.code,Articolo:r.name,Fornitore:r.sup,Famiglia:r.fam,IRCA:r.irca?'SI':'',Fatturato:r.v,'Fatturato prec.':r.pv,'Delta %':r.d,'Quantità':r.um==='€'?'':r.q,'UM':r.um==='€'?'':r.um,'Qtà prec.':r.um==='€'?'':r.pq,'Prezzo medio':r.prz,'Sconto medio':r.sc,'N. clienti':r.nc}));
+  const pr=R.productRowsCache.map(r=>({Codice:r.code,Articolo:r.name,Fornitore:r.sup,Famiglia:r.fam,'Classe merceologica':r.cls,IRCA:r.irca?'SI':'',Fatturato:r.v,'Fatturato prec.':r.pv,'Delta %':r.d,'Quantità':r.um==='€'?'':r.q,'UM':r.um==='€'?'':r.um,'Qtà prec.':r.um==='€'?'':r.pq,'Prezzo medio':r.prz,'Sconto medio':r.sc,'N. clienti':r.nc}));
   XLSX.utils.book_append_sheet(wb,XLSX.utils.json_to_sheet(pr),'Prodotti');
   const mr=R.monthlyRowsCache.map(r=>({Mese:r.ym,Fatturato:r.v,'Stesso mese anno prec.':r.pv,KG:r.kg,LT:r.lt,Pezzi:r.pz,IRCA:r.vI,'Articolo M':r.vM,'Clienti attivi':r.cli,Righe:r.n,'Sconto medio':r.sc}));
   XLSX.utils.book_append_sheet(wb,XLSX.utils.json_to_sheet(mr),'Mensile');
