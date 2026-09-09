@@ -1,0 +1,54 @@
+DAV - CRUSCOTTO VENDITE AGENTI
+==============================
+
+CONTENUTO DELLA CARTELLA dashboard_agenti
+  dashboard.html   la pagina della dashboard (non va modificata a ogni aggiornamento)
+  data.json        i dati aggregati (rigenerato ogni mese)
+  lib\             librerie grafici ed export Excel (Chart.js, SheetJS) - copie locali, nessuna dipendenza da internet
+  build_data.py    script che costruisce data.json dai file Excel
+  aggiorna.bat     doppio clic per rigenerare data.json (Windows)
+  LEGGIMI.txt      questo file
+
+AGGIORNAMENTO MENSILE (3 passi)
+  1. Esporta dal gestionale il file dell'anno in corso (es. 2026.xlsx) nella cartella
+     AnalisiVendite2022_2026.08, sovrascrivendo quello vecchio. Le colonne devono restare quelle standard:
+     Conto, Descr. conto, Articolo, Descr. articolo, UM, Q.ta, Prezzo netto, Data doc., Valore, Prezzo, Sc. 1, Sc. 2
+     (l'export 2026 con 36 colonne va bene: le colonne in piu' vengono ignorate).
+     Se ci sono clienti nuovi aggiorna anche Agente-Cliente.xlsx; se IRCA aggiunge articoli aggiorna art_Irca.xlsx.
+  2. Doppio clic su aggiorna.bat (oppure da prompt:  python build_data.py "C:\Users\Ute04\Desktop\AnalisiVendite2022_2026.08").
+     Servono Python con pandas e openpyxl:  pip install pandas openpyxl   (una volta sola). Impiega circa 1-2 minuti.
+  3. Carica online la cartella dashboard_agenti. Se dashboard.html e lib\ sono gia' online, basta ricaricare data.json.
+
+PUBBLICAZIONE ONLINE
+  La pagina legge data.json con una richiesta web, quindi DEVE stare su un server (hosting del sito DAV, Netlify, GitHub Pages,
+  Cloudflare Pages, una cartella condivisa via web...). Aperta con doppio clic dal PC il browser blocca la lettura: in quel caso
+  la pagina mostra un pulsante per selezionare a mano data.json e funziona lo stesso.
+  data.json pesa circa 9 MB (2-3 MB se il server comprime in gzip, cosa che quasi tutti fanno). Al primo apri ci vogliono
+  alcuni secondi, poi tutti i filtri sono istantanei perche' i calcoli avvengono nel browser.
+  Consiglio: metti la cartella in un indirizzo non indovinabile (es. /vendite-8f3k2/) oppure proteggila con password
+  dal pannello dell'hosting, perche' i dati sono visibili a chiunque abbia il link.
+
+LINK DIRETTI PER GLI AGENTI
+  I filtri finiscono nell'indirizzo dopo il #, quindi puoi mandare a ogni agente un link gia' filtrato:
+     dashboard.html#agent=0     Daniele Crippa
+     dashboard.html#agent=1     Francesco Fumarola
+     dashboard.html#agent=2     Marco Frigerio
+     dashboard.html#agent=3     Misha Shushkov
+     dashboard.html#agent=5     Rabbiosi Alessandro (incluse le posizioni "***" = direzione)
+  (i numeri seguono l'ordine alfabetico degli agenti; "Non assegnato" = 4 raccoglie i clienti 2022-2023 assenti da Agente-Cliente.xlsx)
+
+REGOLE DI CALCOLO
+  - Periodo predefinito: ultimi 12 mesi completi (il mese in corso, incompleto, e' escluso salvo selezione esplicita).
+    Il confronto e' sempre con gli stessi mesi dell'anno prima (like-for-like).
+  - Volumi: KG, LT e pezzi/colli tenuti separati, secondo l'unita' di misura della riga.
+  - Articolo M (manuale): solo valore, mai nei volumi; ha una sezione dedicata.
+  - IRCA: articoli presenti in art_Irca.xlsx (colonna Codice Articolo).
+  - Sconto medio = 1 - Valore netto / (Prezzo di listino x Q.ta), pesato sul valore.
+  - Fornitore: ricavato dalla sigla in fondo alla descrizione articolo (IR = IRCA, 3A = Gruppo 3A, DEBIC, OLITALIA...).
+    Circa il 7% del fatturato resta "ALTRO" (descrizioni senza sigla). Per dare nomi leggibili alle sigle (es. MP -> Molino
+    Pasini) crea un file fornitori.xlsx con due colonne "Codice" e "Nome" nella cartella dei dati: lo script lo usa da solo.
+  - Famiglia prodotto: classificazione per parole chiave nella descrizione (modificabile in build_data.py, blocco FAMIGLIE).
+  - Stato cliente: Silenzioso = almeno 3 mesi di acquisti nei 12 precedenti e nessun acquisto negli ultimi 3 mesi;
+    In calo / In crescita = -20% / +20% sul periodo precedente (con almeno 1.000 EUR nel precedente); Nuovo = primo
+    acquisto nel periodo selezionato.
+  - Gli account "***" di Agente-Cliente.xlsx sono attribuiti a Rabbiosi Alessandro (modificabile in build_data.py, DIREZIONE_RAW).
