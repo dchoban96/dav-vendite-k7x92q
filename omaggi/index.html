@@ -146,6 +146,65 @@ tr.todo .ststate{color:var(--todoT)} tr.done .ststate{color:var(--doneT)}
 .acc .btn{padding:12px;font-size:15px}
 .toast{position:fixed;left:50%;transform:translateX(-50%);bottom:calc(16px + env(safe-area-inset-bottom,0px));background:var(--text);color:var(--bg);padding:9px 14px;border-radius:10px;font-size:13px;z-index:60}
 @media (prefers-reduced-motion:reduce){.prog i{transition:none}}
+/* ===== telefono, vista Schede: tutto in una schermata ===== */
+@media (max-width:759px){
+ body.cards{padding-block:8px 10px}
+ body.cards header{margin-bottom:6px;gap:6px;align-items:center}
+ body.cards h1{font-size:16px}
+ body.cards .sub,body.cards .foot,body.cards .swipehint{display:none}
+ body.cards .hbtns{gap:5px}
+ body.cards .seg button{padding:6px 9px;font-size:12px}
+ body.cards .btn{padding:6px 9px;font-size:12px;border-radius:8px}
+ body.cards #sync{font-size:11px;margin:0 0 6px}
+ body.cards .filters{padding:8px 10px;margin-bottom:8px}
+ body.cards .csearch{margin-bottom:6px}
+ body.cards #cq{padding:8px 10px;font-size:14px;border-radius:10px}
+ body.cards .ctop{font-size:11.5px;margin-bottom:4px}
+ body.cards .prog{height:4px;margin-bottom:6px}
+ body.cards .card{padding:10px;border-radius:14px}
+ body.cards .nm{font-size:15px;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden}
+ body.cards .state{font-size:10.5px;padding:2px 7px}
+ body.cards .cd{font-size:11px;margin-top:2px}
+ body.cards .vpill{font-size:11px;padding:1px 7px}
+ body.cards .stats{gap:6px;margin:8px 0}
+ body.cards .st{padding:6px 8px;border-radius:8px}
+ body.cards .st .l{font-size:10px}
+ body.cards .st .v{font-size:14px}
+ body.cards .st .s{font-size:10px}
+ body.cards .tier{font-size:11px;padding:0 6px;min-width:20px}
+ body.cards .last{font-size:12px;margin:0 0 2px;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden}
+ body.cards .cnote{font-size:10.5px;margin:0 0 8px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+ body.cards .gifts{grid-template-columns:1fr 1fr 1fr;gap:6px}
+ body.cards .g{padding:6px 6px;font-size:11.5px;min-height:40px;border-radius:8px;line-height:1.15}
+ body.cards .g small{font-size:9.5px;margin-top:1px}
+ body.cards .altro{padding:8px;font-size:14px}
+ body.cards .val{padding:6px 10px;margin:8px 0 0;border-radius:8px}
+ body.cards .val .l{font-size:11px}
+ body.cards .val .v{font-size:16px}
+ body.cards .val .s{font-size:10px}
+ body.cards .nav{margin-top:8px;gap:6px}
+ body.cards .nav button{padding:10px 13px;font-size:14px;border-radius:10px}
+ body.cards .undo{margin-top:6px;font-size:11px}
+}
+@media (max-width:759px) and (max-height:720px){
+ body.cards{padding-block:4px 6px}
+ body.cards header{margin-bottom:4px}
+ body.cards #sync{margin-bottom:4px;font-size:10px}
+ body.cards .st .s,body.cards .cnote{display:none}
+ body.cards .stats{margin:6px 0}
+ body.cards .st{padding:5px 7px}
+ body.cards .last{-webkit-line-clamp:1;margin-bottom:6px}
+ body.cards .g{min-height:36px;padding:5px 6px}
+ body.cards .gifts{gap:5px}
+ body.cards .altro{padding:6px 8px;font-size:13px}
+ body.cards .val{padding:5px 10px;margin-top:6px}
+ body.cards .val .s{display:none}
+ body.cards .nav{margin-top:6px}
+ body.cards .nav button{padding:9px 12px;font-size:13px}
+ body.cards .card{padding:8px}
+ body.cards #cq{padding:7px 10px;font-size:13px}
+ body.cards .csearch{margin-bottom:4px}
+}
 </style>
 
 <div class="wrap">
@@ -154,7 +213,7 @@ tr.todo .ststate{color:var(--todoT)} tr.done .ststate{color:var(--doneT)}
  <div class="sub">Fatturato YTD gen–ott 2026 contro gen–ott 2025 e omaggi di Natale 2025. Praline e cioccolatini esclusi.</div></div>
  <div class="hbtns">
   <div class="seg" role="group" aria-label="Vista"><button type="button" id="bCards" aria-pressed="false">Schede</button><button type="button" id="bTable" aria-pressed="false">Tabella</button></div>
-  <button class="btn ghost ftog" id="ftog" type="button" aria-expanded="false" aria-controls="filters">Filtri</button><button class="btn ghost" id="theme" type="button">Tema</button><button class="btn" id="xls" type="button">Esporta Excel</button>
+  <button class="btn ghost ftog" id="ftog" type="button" aria-expanded="false" aria-controls="filters">Filtri</button><button class="btn ghost" id="theme" type="button">Tema</button><button class="btn" id="xls" type="button">Excel</button>
  </div>
 </header>
 <div class="sync" id="sync" style="margin:-4px 0 10px">Caricamento conferme…</div>
@@ -369,7 +428,7 @@ $('cq').addEventListener('keydown',e=>{const bs=[...$('cqList').querySelectorAll
  if(e.key==='ArrowDown'){cqAct=Math.min(bs.length-1,cqAct+1);e.preventDefault();cqRender();}else if(e.key==='ArrowUp'){cqAct=Math.max(0,cqAct-1);e.preventDefault();cqRender();}
  else if(e.key==='Enter'){e.preventDefault();cqPick(bs[Math.max(0,cqAct)].dataset.c);}else if(e.key==='Escape'){$('cqList').hidden=true;}});
 document.addEventListener('mousedown',e=>{if(!e.target.closest('.csearch'))$('cqList').hidden=true;});
-function setView(v){view=v;document.querySelector('details.rules').hidden=v==='cards';$('vCards').hidden=v!=='cards';$('vTable').hidden=v!=='table';$('bCards').setAttribute('aria-pressed',v==='cards');$('bTable').setAttribute('aria-pressed',v==='table');
+function setView(v){view=v;document.body.classList.toggle('cards',v==='cards');document.querySelector('details.rules').hidden=v==='cards';$('vCards').hidden=v!=='cards';$('vTable').hidden=v!=='table';$('bCards').setAttribute('aria-pressed',v==='cards');$('bTable').setAttribute('aria-pressed',v==='table');
  try{if(location.hash!=='#'+(v==='cards'?'schede':'tabella'))history.replaceState(null,'','#'+(v==='cards'?'schede':'tabella'));}catch(e){} render();}
 $('bCards').addEventListener('click',()=>setView('cards'));$('bTable').addEventListener('click',()=>setView('table'));
 addEventListener('hashchange',()=>{const h=location.hash.slice(1);if(h==='schede'&&view!=='cards')setView('cards');if(h==='tabella'&&view!=='table')setView('table');});
