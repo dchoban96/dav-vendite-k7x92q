@@ -1,5 +1,6 @@
 <!doctype html>
 <html lang="it"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover"><style>[hidden]{display:none!important}body{margin:0}</style></head><body>
+<script>window.OMAGGI_API='https://omaggi-dav.dchoban96.workers.dev';</script>
 <title>Omaggi Natale 2026</title>
 <meta name="claude:viewport-fit-sides" content="cover">
 <script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.min.js"></script>
@@ -138,6 +139,11 @@ tr.todo .ststate{color:var(--todoT)} tr.done .ststate{color:var(--doneT)}
 .pop .btn{padding:7px 11px;font-size:12px}
 .pop .btn[disabled]{opacity:.45;cursor:not-allowed}
 .foot{font-size:12px;color:var(--muted);margin-top:16px}
+.overlay{position:fixed;inset:0;background:rgba(0,0,0,.45);display:flex;align-items:center;justify-content:center;z-index:70;padding:16px}
+.acc{background:var(--surface);color:var(--text);border-radius:16px;padding:20px;width:100%;max-width:360px;display:flex;flex-direction:column;gap:10px}
+.acc h2{margin:0;font-size:18px}.acc label{display:flex;flex-direction:column;gap:4px;font-size:13px;color:var(--text2)}
+.acc input{font:16px system-ui;padding:10px;border-radius:9px;border:1px solid var(--border);background:var(--input);color:var(--text)}
+.acc .btn{padding:12px;font-size:15px}
 .toast{position:fixed;left:50%;transform:translateX(-50%);bottom:calc(16px + env(safe-area-inset-bottom,0px));background:var(--text);color:var(--bg);padding:9px 14px;border-radius:10px;font-size:13px;z-index:60}
 @media (prefers-reduced-motion:reduce){.prog i{transition:none}}
 </style>
@@ -292,6 +298,7 @@ const Store={mode:'local',data:{},db:null,uid:null,chain:{},
  async init(){
   let db=null;
   try{ if(window.claude&&typeof window.claude.use==='function') db=await window.claude.use('db'); }catch(e){db=null;}
+  if(!db&&window.OMAGGI_API){ return this.initApi(); }
   if(!db){ this.data=LS.get('om26_conf',{}); this.mode='local'; $('sync').textContent='Conferme salvate solo su questo dispositivo'; render(); return; }
   this.db=db; this.mode='db';
   try{const u=await window.claude.use('user'); this.uid=u?await u.id():null;}catch(e){}
@@ -301,14 +308,32 @@ const Store={mode:'local',data:{},db:null,uid:null,chain:{},
    err=>{got=true;clearTimeout(tm);$('sync').textContent='Conferme online non disponibili ('+err.code+')';});
   db.doc('impostazioni/costi').onSnapshot(s=>{if(s.exists&&s.data().c){costs=Object.assign({},DEFAULT_COSTS,s.data().c);render();}},()=>{});
  },
+ /* --- modalita' servizio condiviso (Cloudflare Worker) --- */
+ api:null,pin:null,who:null,timer:null,
+ async initApi(){ this.mode='api'; this.api=String(window.OMAGGI_API).replace(/\/+$/,''); this.pin=LS.get('om26_pin',null); this.who=LS.get('om26_who',null);
+  this.data=LS.get('om26_conf_cache',{}); render();
+  if(!this.pin||!this.who){ askAccess(); return; }
+  await this.refresh(true);
+  this.timer=setInterval(()=>this.refresh(false),30000);
+  document.addEventListener('visibilitychange',()=>{if(!document.hidden)this.refresh(false);});
+ },
+ async call(method,path,body){ const r=await fetch(this.api+path,{method,headers:Object.assign({'X-Pin':this.pin||''},body?{'Content-Type':'application/json'}:{}),body:body?JSON.stringify(body):undefined});
+  if(r.status===401){ throw Object.assign(new Error('pin'),{code:'pin'}); } if(!r.ok) throw Object.assign(new Error('http '+r.status),{code:'http'}); return r.json(); },
+ async refresh(first){ try{ const j=await this.call('GET','/api/conferme'); this.data=j.conferme||{}; LS.set('om26_conf_cache',this.data);
+   const k=await this.call('GET','/api/costi'); if(k.c&&Object.keys(k.c).length) costs=Object.assign({},DEFAULT_COSTS,k.c);
+   $('sync').textContent='✓ Conferme condivise online · '+esc(this.who||''); render(); }
+  catch(e){ if(e.code==='pin'){ this.pin=null; LS.set('om26_pin',null); askAccess('PIN non valido'); } else $('sync').textContent=(first?'Conferme non caricate: ':'Aggiornamento non riuscito: ')+'controlla la connessione'; } },
  saveCosts(){ if(this.mode==='local'){LS.set('om26_costs2',costs);return;}
+  if(this.mode==='api'){ this.chain.__c=(this.chain.__c||Promise.resolve()).then(()=>this.call('PUT','/api/costi',{c:Object.assign({},costs)})).catch(()=>toast('Costi non salvati: controlla la connessione')); return; }
   const body={c:Object.assign({},costs)}; this.chain.__c=(this.chain.__c||Promise.resolve()).then(()=>this.db.doc('impostazioni/costi').set(body)).catch(e=>toast('Costi non salvati: '+(e&&e.code||'errore'))); },
  save(c,obj){ this.data=Object.assign({},this.data,{[c]:obj});
   if(this.mode==='local'){LS.set('om26_conf',this.data);return Promise.resolve();}
+  if(this.mode==='api'){ LS.set('om26_conf_cache',this.data); const p=(this.chain[c]||Promise.resolve()).then(()=>this.call('PUT','/api/conferme/'+c,{items:obj.items,altro:obj.altro,by:this.who})).then(j=>{if(j&&j.doc){this.data=Object.assign({},this.data,{[c]:j.doc});render();}}).catch(e=>{toast(e.code==='pin'?'PIN non valido':'Conferma non salvata: controlla la connessione');}); this.chain[c]=p; return p; }
   const p=(this.chain[c]||Promise.resolve()).then(()=>this.db.doc('conferme/'+c).set(obj)).catch(e=>{toast('Conferma non salvata: '+(e&&e.code||'errore'));});
   this.chain[c]=p; return p; },
  remove(c){ const d=Object.assign({},this.data); delete d[c]; this.data=d;
   if(this.mode==='local'){LS.set('om26_conf',this.data);return Promise.resolve();}
+  if(this.mode==='api'){ LS.set('om26_conf_cache',this.data); const p=(this.chain[c]||Promise.resolve()).then(()=>this.call('DELETE','/api/conferme/'+c)).catch(()=>toast('Operazione non riuscita: controlla la connessione')); this.chain[c]=p; return p; }
   const p=(this.chain[c]||Promise.resolve()).then(()=>this.db.doc('conferme/'+c).delete()).catch(e=>{toast('Operazione non riuscita: '+(e&&e.code||'errore'));});
   this.chain[c]=p; return p; }
 };
@@ -351,7 +376,7 @@ addEventListener('hashchange',()=>{const h=location.hash.slice(1);if(h==='schede
 function compute(){
  return DATA.map(r=>{const s=suggest(r,S);const cf=Store.data[r.c];
   const x=Object.assign({},r,s,{var:r.y25>0?r.y26/r.y25-1:null,g25:gifts25Text(r.g),auto:s.items.slice(),altro:null,ok:false,at:null});
-  if(cf&&cf.ok){x.items=(cf.items||[]).filter(k=>ITEMS[k]);x.altro=cf.altro||null;x.ok=true;x.at=cf.at||null;}
+  if(cf&&cf.ok){x.items=(cf.items||[]).filter(k=>ITEMS[k]);x.altro=cf.altro||null;x.ok=true;x.at=cf.at||null;x.by=cf.by||null;}
   return x;}).filter(r=>r.show||r.ok);
 }
 function filtered(all){const a=$('fA').value,t=$('fT').value,s=$('fS').value,c=$('fC').value,q=$('q').value.trim().toLowerCase();
@@ -376,7 +401,18 @@ function wireGifts(root,st,prefix,onChange){
  inp.addEventListener('input',()=>{st.altro=inp.value;if(inp.value.trim()){msg.textContent='';inp.classList.remove('err');}onChange();});
  return ()=>{const bad=st.altroOn&&!st.altro.trim();inp.classList.toggle('err',bad);msg.textContent=bad?'Scrivi cosa regalare con "Altro".':'';if(bad)inp.focus();return !bad;};
 }
-function confirmRow(r,st){return Store.save(r.c,{ok:true,items:Object.keys(ITEMS).filter(k=>st.sel.has(k)),altro:st.altroOn?st.altro.trim():null,at:new Date().toISOString(),by:Store.uid||null});}
+function confirmRow(r,st){return Store.save(r.c,{ok:true,items:Object.keys(ITEMS).filter(k=>st.sel.has(k)),altro:st.altroOn?st.altro.trim():null,at:new Date().toISOString(),by:Store.who||Store.uid||null});}
+/* accesso al servizio condiviso: PIN + nome, chiesti una volta per dispositivo */
+function askAccess(msg){ let ov=$('access'); if(ov) ov.remove();
+ ov=document.createElement('div'); ov.id='access'; ov.className='overlay';
+ ov.innerHTML=`<form class="acc" id="accForm"><h2>Omaggi Natale 2026</h2><p class="hint">Le conferme sono condivise con i colleghi. Inserisci il PIN e il tuo nome: te li chiediamo solo una volta su questo dispositivo.</p>
+  <label>PIN<input type="password" inputmode="numeric" autocomplete="off" id="accPin" value="" required></label>
+  <label>Il tuo nome<input type="text" id="accWho" maxlength="40" value="${esc(Store.who||'')}" required placeholder="es. Marco"></label>
+  <div class="emsg" id="accMsg">${esc(msg||'')}</div><button class="btn" type="submit">Entra</button></form>`;
+ document.body.appendChild(ov); $('accPin').focus();
+ $('accForm').addEventListener('submit',async e=>{e.preventDefault(); const pin=$('accPin').value.trim(), who=$('accWho').value.trim(); if(!pin||!who){$('accMsg').textContent='Servono PIN e nome.';return;}
+  Store.pin=pin; Store.who=who; try{ await Store.call('GET','/api/costi'); }catch(err){ Store.pin=null; $('accMsg').textContent=err.code==='pin'?'PIN non valido.':'Connessione non riuscita, riprova.'; return; }
+  LS.set('om26_pin',pin); LS.set('om26_who',who); ov.remove(); await Store.refresh(true); if(!Store.timer){Store.timer=setInterval(()=>Store.refresh(false),30000);document.addEventListener('visibilitychange',()=>{if(!document.hidden)Store.refresh(false);});} });}
 
 /* ---------- vista SCHEDE ---------- */
 function renderCards(rows){
@@ -392,7 +428,7 @@ function renderCards(rows){
  const okNow=r.ok&&!changed();
  $('cPos').textContent=`Cliente ${i+1} di ${list.length}`;
  host.innerHTML=`<article class="card ${okNow?'ok':''}" id="card">
-  <div class="chead"><div class="nm">${esc(r.n)}</div><span class="state" id="cState">${okNow?'✓ Confermato'+(r.at?' '+dmy(r.at):''):(r.ok?'Modificato: da confermare':'Da confermare')}</span></div>
+  <div class="chead"><div class="nm">${esc(r.n)}</div><span class="state" id="cState">${okNow?'✓ Confermato'+(r.at?' '+dmy(r.at):'')+(r.by&&Store.mode==='api'?' · '+r.by:''):(r.ok?'Modificato: da confermare':'Da confermare')}</span></div>
   <div class="cd">Cod. ${r.c} · ${esc(r.a)} ${vpill(r.st)}</div>
   <div class="stats">
    <div class="st"><div class="l">Fatturato YTD 2026</div><div class="v">${eur(r.y26)}</div><div class="s">2025: ${eur(r.y25)||'0 €'}</div></div>
@@ -410,7 +446,7 @@ function renderCards(rows){
  const card=$('card');
  const showVal=()=>{const {v,miss}=valueOf([...draft.sel]);$('cVal').textContent=eur2(v);
    $('cValS').textContent=(miss.length?'+ '+miss.join(', ')+' da prezzare':'a prezzo di listino')+(draft.altroOn&&draft.altro.trim()?' · altro escluso':'');};
- const upd=()=>{showVal();const ok=r.ok&&!changed();card.classList.toggle('ok',ok);$('cState').textContent=ok?'✓ Confermato'+(r.at?' '+dmy(r.at):''):(r.ok?'Modificato: da confermare':'Da confermare');$('cOk').textContent=ok?'Confermato · avanti':(r.ok?'Aggiorna conferma':'Conferma e avanti');};
+ const upd=()=>{showVal();const ok=r.ok&&!changed();card.classList.toggle('ok',ok);$('cState').textContent=ok?'✓ Confermato'+(r.at?' '+dmy(r.at):'')+(r.by&&Store.mode==='api'?' · '+r.by:''):(r.ok?'Modificato: da confermare':'Da confermare');$('cOk').textContent=ok?'Confermato · avanti':(r.ok?'Aggiorna conferma':'Conferma e avanti');};
  const validate=wireGifts(card,draft,'c',upd);showVal();
  let sx=null,sy=null,st0=0;
  card.addEventListener('touchstart',e=>{if(e.target.closest('input'))return;const p=e.changedTouches[0];sx=p.clientX;sy=p.clientY;st0=Date.now();},{passive:true});
@@ -468,7 +504,7 @@ function renderTable(rows){
   <td class="n ${pcls(r.var)}">${pct(r.var)}</td><td>${tierBadge(r.tier)}</td><td>${vpill(r.st)}</td><td class="small">${esc(r.g25)||'<span class="muted">nessuno</span>'}</td>
   <td class="small"><button type="button" class="pick" data-c="${r.c}" aria-haspopup="dialog"><span>${esc(prop)||'<span class="muted">nessuno</span>'}</span><span class="car">▾</span></button></td>
   <td class="n">${r.val?eur2(r.val):'<span class="muted">–</span>'}</td>
-  <td><span class="ststate">${r.ok?'✓ Confermato'+(r.at?' '+dmy(r.at):''):'Da confermare'}</span></td></tr>`;});
+  <td><span class="ststate">${r.ok?'✓ Confermato'+(r.at?' '+dmy(r.at):'')+(r.by&&Store.mode==='api'?' · '+r.by:''):'Da confermare'}</span></td></tr>`;});
  $('tMain').innerHTML=m+'</tbody>';
  $('tMain').querySelectorAll('th').forEach(th=>th.addEventListener('click',()=>{const k=th.dataset.k;if(sortK===k)sortDir*=-1;else{sortK=k;sortDir=['y26','var','val'].includes(k)?-1:1;}render();}));
  $('tMain').querySelectorAll('button.pick').forEach(b=>b.addEventListener('click',e=>{e.stopPropagation();openPick(b,cur.find(r=>r.c===b.dataset.c));}));
@@ -496,7 +532,7 @@ function openPick(btn,r){closePick();if(!r)return;
 $('xls').addEventListener('click',async()=>{
  if(typeof XLSX==='undefined'){toast('Libreria Excel non caricata: serve la connessione.');return;}
  const rows=filtered(compute());
- const r1=rows.map(r=>{const o={Codice:+r.c,Cliente:r.n,Agente:r.a,'Fatturato YTD 2026':Math.round(r.y26*100)/100,'Fatturato YTD 2025':Math.round(r.y25*100)/100,'Var %':r.var==null?null:Math.round(r.var*1000)/10,Fascia:r.tier==='-'?'':r.tier,Andamento:r.st,'Natale 2025':r.g25,'Proposta 2026':propText(r.items,r.altro),'Valore stimato €':Math.round(valueOf(r.items).v*100)/100,Stato:r.ok?'Confermato':'Da confermare','Data conferma':r.at?new Date(r.at).toLocaleDateString('it-IT'):'',Note:r.note};
+ const r1=rows.map(r=>{const o={Codice:+r.c,Cliente:r.n,Agente:r.a,'Fatturato YTD 2026':Math.round(r.y26*100)/100,'Fatturato YTD 2025':Math.round(r.y25*100)/100,'Var %':r.var==null?null:Math.round(r.var*1000)/10,Fascia:r.tier==='-'?'':r.tier,Andamento:r.st,'Natale 2025':r.g25,'Proposta 2026':propText(r.items,r.altro),'Valore stimato €':Math.round(valueOf(r.items).v*100)/100,Stato:r.ok?'Confermato':'Da confermare','Data conferma':r.at?new Date(r.at).toLocaleDateString('it-IT'):'','Confermato da':r.by||'',Note:r.note};
   Object.keys(ITEMS).forEach(k=>{o[ITEMS[k].l+' ('+ITEMS[k].u+')']=r.items.includes(k)?1:null});o['Altro']=r.altro||'';return o;});
  const ik=itemKeys(rows);const r2=ik.map(k=>{const q=rows.filter(r=>r.items.includes(k)).length;return {Articolo:ITEMS[k].l,'Unità':ITEMS[k].u,'Quantità':q,'Valore unitario':costs[k]||null,'Totale €':costs[k]?Math.round(q*costs[k]*100)/100:null}});
  const alt={};rows.forEach(r=>{if(r.altro){const k=r.altro.trim();alt[k]=(alt[k]||0)+1}});Object.keys(alt).sort().forEach(k=>r2.push({Articolo:'Altro: '+k,'Unità':'','Quantità':alt[k]}));
