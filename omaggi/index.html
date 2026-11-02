@@ -250,7 +250,9 @@ tr.todo .ststate{color:var(--todoT)} tr.done .ststate{color:var(--doneT)}
   <label>Fascia D da (€ YTD)<input type="number" id="sD" step="500"></label>
   <label>Soglia minima omaggio (€ YTD)<input type="number" id="sMin" step="100"></label>
   <label>Crescita / calo da (±%)<input type="number" id="sTr" step="1" min="1"></label>
-  <label>Limite regalo (% del fatturato YTD)<input type="number" id="sCap" step="0.5" min="0"></label>
+  <label>Limite regalo (% del fatturato YTD)<input type="number" id="sCap" step="0.1" min="0"></label>
+  <label>Sotto questo fatturato (€)…<input type="number" id="sCapU" step="1000" min="0"></label>
+  <label>…limite fisso (€)<input type="number" id="sCapF" step="5" min="0"></label>
   <label class="chk" style="flex-direction:row;align-items:center;margin-top:18px"><input type="checkbox" id="sSost"> Panettone al posto delle praline</label>
  </div>
  <ul class="rtext">
@@ -258,7 +260,7 @@ tr.todo .ststate{color:var(--todoT)} tr.done .ststate{color:var(--doneT)}
   <li><b>A</b>: kit + salmone intero · <b>B</b>: kit + salmone 1 kg · <b>C</b>: kit + parmigiano. Chi nel 2025 ha avuto olio, prosciutto o bresaola li riceve di nuovo.</li>
   <li><b>D</b>: kit + panettone · <b>E</b>: solo kit. Panettone anche a chi nel 2025 aveva panettone o praline.</li>
   <li><b>Andamento</b> = solo andamento del fatturato YTD 2026 contro YTD 2025, uguale per tutti: <b>Crescita</b> da +10%, <b>Calo</b> da −10%, <b>Stabile</b> in mezzo, <b>Nuovo</b> se non comprava nel 2025, <b>Perso</b> se non compra da agosto–ottobre 2026.</li>
-  <li><b>Limite</b>: il valore stimato del regalo non può superare l'1% del fatturato YTD del cliente. Oltre il limite la conferma richiede il PIN di sblocco e resta segnata come "oltre limite". Attrezzatura e panettone contano solo se hanno un valore.</li>
+  <li><b>Limite</b>: il valore stimato del regalo non può superare lo 0,3% del fatturato YTD del cliente; per i clienti sotto i 10.000 € il limite è fisso a 30 €. Oltre il limite la conferma richiede il PIN di sblocco e resta segnata come "oltre limite". Attrezzatura e panettone contano solo se hanno un valore.</li>
   <li><b>Premium aggiunto</b> a chi l'anno scorso non l'aveva solo se è in fascia A–C <b>e</b> in crescita. Chi aveva solo il parmigiano e sale in A–B in crescita passa al salmone. <b>Premium tolto</b> solo se è in fascia D–E <b>e</b> in calo. Negli altri casi resta il livello del 2025: la nota della scheda dice cosa è cambiato. Le soglie cambiano solo i clienti non ancora confermati.</li>
  </ul>
  <button class="btn ghost" id="reset" type="button" style="margin-top:6px">Ripristina valori iniziali</button>
@@ -302,7 +304,7 @@ const G25={magliette:'magliette',attrezzatura:'attrezzatura',praline:'praline',p
  salmone:'salmone',parmigiano:'parmigiano',olio:'olio EVO',prosciutto:'prosciutto',bresaola:'bresaola',salame:'salame',nd:'omaggio non dettagliato'};
 const PREM=['salmone','parmigiano','olio','prosciutto','bresaola'];
 const PREM25=['salmone','parmigiano','olio','prosciutto','bresaola','salame'];
-const DEFAULTS={min:800,D:4000,C:8500,B:17000,A:33000,sost:true,trend:10,cap:1};
+const DEFAULTS={min:800,D:4000,C:8500,B:17000,A:33000,sost:true,trend:10,cap:0.3,capUnder:10000,capFlat:30};
 function tierOf(f,S){return f>=S.A?'A':f>=S.B?'B':f>=S.C?'C':f>=S.D?'D':f>=S.min?'E':'-';}
 /* Variazione = SOLO andamento del fatturato YTD 2026 vs YTD 2025 */
 function trendOf(r,S){
@@ -353,15 +355,16 @@ const ICON=Object.fromEntries(STS);
 const VCLS={Crescita:'v-up',Nuovo:'v-up',Stabile:'v-ok',Calo:'v-down',Perso:'v-lost'};
 const VVAR={'v-up':'--vUp','v-ok':'--vOk','v-down':'--vDown','v-lost':'--vLost'};
 const LS={get(k,d){try{const v=localStorage.getItem(k);return v==null?d:JSON.parse(v)}catch(e){return d}},set(k,v){try{localStorage.setItem(k,JSON.stringify(v))}catch(e){}}};
-let S=Object.assign({},DEFAULTS,LS.get('om26_S3',{}));
+let S=Object.assign({},DEFAULTS,LS.get('om26_S4',{}));
 /* limite regalo: % del fatturato YTD; oltre il limite serve il PIN di sblocco (salvato solo come impronta SHA-256) */
 const UNLOCK_HASH='0e0d08df6565c9b0081e79e4be3aba1da16b74306010864a3aa5e9e90a30e92f';
-const capOf=r=>S.cap>0?r.y26*S.cap/100:Infinity;
+const capOf=r=>(S.capFlat>0&&r.y26<S.capUnder)?S.capFlat:(S.cap>0?r.y26*S.cap/100:Infinity);
 async function sha256(s){const b=await crypto.subtle.digest('SHA-256',new TextEncoder().encode(s));return [...new Uint8Array(b)].map(x=>x.toString(16).padStart(2,'0')).join('');}
 async function checkUnlock(pin){try{return (await sha256(String(pin).trim()))===UNLOCK_HASH;}catch(e){return false;}}
 /* chiede il PIN di sblocco dentro un contenitore; risolve true/false */
+const r_limit_desc=lim=>lim===S.capFlat?'limite fisso sotto '+eur2(S.capUnder)+' di fatturato':S.cap+'% del fatturato YTD';
 function askUnlock(host,limit,value){return new Promise(res=>{const old=host.querySelector('.unlock');if(old)old.remove();
- const d=document.createElement('div');d.className='unlock';d.innerHTML=`<div class="emsg">Regalo da ${eur2(value)}: supera il limite di ${eur2(limit)} (${S.cap}% del fatturato YTD). Serve il PIN di sblocco.</div>
+ const d=document.createElement('div');d.className='unlock';d.innerHTML=`<div class="emsg">Regalo da ${eur2(value)}: supera il limite di ${eur2(limit)} (${r_limit_desc(limit)}). Serve il PIN di sblocco.</div>
   <div class="urow"><input type="password" inputmode="numeric" autocomplete="off" class="altro" placeholder="PIN di sblocco" aria-label="PIN di sblocco"><button type="button" class="btn">Sblocca</button><button type="button" class="btn ghost">Annulla</button></div>`;
  host.appendChild(d);const inp=d.querySelector('input'),ok=d.querySelector('.btn:not(.ghost)'),no=d.querySelector('.ghost');inp.focus();
  const done=v=>{d.remove();res(v);};
@@ -434,11 +437,11 @@ const Store={mode:'local',data:{},db:null,uid:null,chain:{},
 TIERS.forEach(t=>$('fT').insertAdjacentHTML('beforeend',`<option value="${t}">Fascia ${t}</option>`));
 STS.forEach(([s,i])=>$('fS').insertAdjacentHTML('beforeend',`<option value="${s}">${i} ${s}</option>`));
 const savedF=LS.get('om26_filters',{});['fA','fT','fS','fC'].forEach(id=>{if(savedF[id]!=null)$(id).value=savedF[id];});
-function syncInputs(){$('sA').value=S.A;$('sB').value=S.B;$('sC').value=S.C;$('sD').value=S.D;$('sMin').value=S.min;$('sTr').value=S.trend;$('sCap').value=S.cap;$('sSost').checked=!!S.sost;}
+function syncInputs(){$('sA').value=S.A;$('sB').value=S.B;$('sC').value=S.C;$('sD').value=S.D;$('sMin').value=S.min;$('sTr').value=S.trend;$('sCap').value=S.cap;$('sCapU').value=S.capUnder;$('sCapF').value=S.capFlat;$('sSost').checked=!!S.sost;}
 syncInputs();
-['sA','sB','sC','sD','sMin','sTr','sCap'].forEach(id=>$(id).addEventListener('change',()=>{const k={sA:'A',sB:'B',sC:'C',sD:'D',sMin:'min',sTr:'trend',sCap:'cap'}[id];const v=+$(id).value;if(!isNaN(v))S[k]=v;LS.set('om26_S3',S);draft=null;render();}));
-$('sSost').addEventListener('change',()=>{S.sost=$('sSost').checked;LS.set('om26_S3',S);draft=null;render();});
-$('reset').addEventListener('click',()=>{S=Object.assign({},DEFAULTS);LS.set('om26_S3',S);syncInputs();draft=null;render();});
+['sA','sB','sC','sD','sMin','sTr','sCap','sCapU','sCapF'].forEach(id=>$(id).addEventListener('change',()=>{const k={sA:'A',sB:'B',sC:'C',sD:'D',sMin:'min',sTr:'trend',sCap:'cap',sCapU:'capUnder',sCapF:'capFlat'}[id];const v=+$(id).value;if(!isNaN(v))S[k]=v;LS.set('om26_S4',S);draft=null;render();}));
+$('sSost').addEventListener('change',()=>{S.sost=$('sSost').checked;LS.set('om26_S4',S);draft=null;render();});
+$('reset').addEventListener('click',()=>{S=Object.assign({},DEFAULTS);LS.set('om26_S4',S);syncInputs();draft=null;render();});
 ['fA','fT','fS','fC'].forEach(id=>$(id).addEventListener('change',()=>{const f={};['fA','fT','fS','fC'].forEach(x=>f[x]=$(x).value);LS.set('om26_filters',f);draft=null;render();}));
 $('q').addEventListener('input',()=>{draft=null;render();});
 $('theme').addEventListener('click',()=>{const r=document.documentElement;const dark=r.getAttribute('data-theme')?r.getAttribute('data-theme')==='dark':matchMedia('(prefers-color-scheme: dark)').matches;r.setAttribute('data-theme',dark?'light':'dark');render();});
@@ -567,7 +570,7 @@ let cItems,cTier,cur=[];
 function itemKeys(rows){const u=new Set();rows.forEach(r=>r.items.forEach(i=>u.add(i)));return Object.keys(ITEMS).filter(k=>u.has(k));}
 function renderTable(rows){
  cur=rows; const give=rows.filter(r=>r.items.length||r.altro); const c=s=>rows.filter(r=>r.st===s).length;
- $('kpis').innerHTML=[['Clienti da omaggiare',give.length],['✓ Confermati',rows.filter(r=>r.ok).length+' / '+rows.length],['Valore stimato'+(rows.some(r=>valueOf(r.items).miss.length)?' (senza attrezzatura/panettone)':''),eur2(rows.reduce((s,r)=>s+valueOf(r.items).v,0))],['▲ Crescita',c('Crescita'),'v-up'],['★ Nuovi',c('Nuovo'),'v-up'],['= Stabili',c('Stabile'),'v-ok'],['▼ Calo',c('Calo'),'v-down'],['✕ Persi',c('Perso'),'v-lost'],['⚠ Oltre limite '+S.cap+'%',rows.filter(r=>valueOf(r.items).v>capOf(r)).length]]
+ $('kpis').innerHTML=[['Clienti da omaggiare',give.length],['✓ Confermati',rows.filter(r=>r.ok).length+' / '+rows.length],['Valore stimato'+(rows.some(r=>valueOf(r.items).miss.length)?' (senza attrezzatura/panettone)':''),eur2(rows.reduce((s,r)=>s+valueOf(r.items).v,0))],['▲ Crescita',c('Crescita'),'v-up'],['★ Nuovi',c('Nuovo'),'v-up'],['= Stabili',c('Stabile'),'v-ok'],['▼ Calo',c('Calo'),'v-down'],['✕ Persi',c('Perso'),'v-lost'],['⚠ Oltre limite',rows.filter(r=>valueOf(r.items).v>capOf(r)).length]]
   .map(([l,v,k])=>`<div class="kpi"><div class="v">${v}</div><div class="l">${k?`<span class="dot" style="background:var(${VVAR[k]})"></span>`:''}${l}</div></div>`).join('');
  const keys=itemKeys(rows),qty=k=>rows.filter(r=>r.items.includes(k)).length,ik=keys.slice().sort((x,y)=>qty(y)-qty(x));
  const grid=css('--grid'),t2=css('--text2');
@@ -627,7 +630,7 @@ function openPick(btn,r){closePick();if(!r)return;
 $('xls').addEventListener('click',async()=>{
  if(typeof XLSX==='undefined'){toast('Libreria Excel non caricata: serve la connessione.');return;}
  const rows=filtered(compute());
- const r1=rows.map(r=>{const o={Codice:+r.c,Cliente:r.n,Agente:r.a,'Fatturato YTD 2026':Math.round(r.y26*100)/100,'Fatturato YTD 2025':Math.round(r.y25*100)/100,'Var %':r.var==null?null:Math.round(r.var*1000)/10,Fascia:r.tier==='-'?'':r.tier,Andamento:r.st,'Natale 2025':r.g25,'Proposta 2026':propText(r.items,r.altro),'Valore stimato €':Math.round(valueOf(r.items).v*100)/100,Stato:r.ok?'Confermato':'Da confermare','Data conferma':r.at?new Date(r.at).toLocaleDateString('it-IT'):'','Confermato da':r.by||'',['Limite '+S.cap+'% €']:Math.round(capOf(r)*100)/100,'Oltre limite':valueOf(r.items).v>capOf(r)?'Sì':'',Note:r.note};
+ const r1=rows.map(r=>{const o={Codice:+r.c,Cliente:r.n,Agente:r.a,'Fatturato YTD 2026':Math.round(r.y26*100)/100,'Fatturato YTD 2025':Math.round(r.y25*100)/100,'Var %':r.var==null?null:Math.round(r.var*1000)/10,Fascia:r.tier==='-'?'':r.tier,Andamento:r.st,'Natale 2025':r.g25,'Proposta 2026':propText(r.items,r.altro),'Valore stimato €':Math.round(valueOf(r.items).v*100)/100,Stato:r.ok?'Confermato':'Da confermare','Data conferma':r.at?new Date(r.at).toLocaleDateString('it-IT'):'','Confermato da':r.by||'','Limite regalo €':Math.round(capOf(r)*100)/100,'Oltre limite':valueOf(r.items).v>capOf(r)?'Sì':'',Note:r.note};
   Object.keys(ITEMS).forEach(k=>{o[ITEMS[k].l+' ('+ITEMS[k].u+')']=r.items.includes(k)?1:null});o['Altro']=r.altro||'';return o;});
  const ik=itemKeys(rows);const r2=ik.map(k=>{const q=rows.filter(r=>r.items.includes(k)).length;return {Articolo:ITEMS[k].l,'Unità':ITEMS[k].u,'Quantità':q,'Valore unitario':costs[k]||null,'Totale €':costs[k]?Math.round(q*costs[k]*100)/100:null}});
  const alt={};rows.forEach(r=>{if(r.altro){const k=r.altro.trim();alt[k]=(alt[k]||0)+1}});Object.keys(alt).sort().forEach(k=>r2.push({Articolo:'Altro: '+k,'Unità':'','Quantità':alt[k]}));
