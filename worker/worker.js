@@ -48,6 +48,7 @@ export default {
         altro: typeof body.altro === "string" && body.altro.trim() ? body.altro.trim().slice(0, 80) : null,
         at: new Date().toISOString(),
         by: typeof body.by === "string" && body.by.trim() ? body.by.trim().slice(0, 40) : null,
+        over: body.over === true,
       };
       await env.OMAGGI.put("conf:" + m[1], "1", { metadata: doc });
       return json({ ok: true, doc });
