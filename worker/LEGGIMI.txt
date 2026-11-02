@@ -1,0 +1,26 @@
+OMAGGI DAV - servizio delle conferme condivise (Cloudflare Worker)
+=================================================================
+
+Serve alla dashboard /omaggi/ per salvare le conferme in un archivio comune:
+chi apre la pagina (PC o telefono) vede le conferme fatte dagli altri.
+
+DEPLOY DALLA DASHBOARD CLOUDFLARE (come per SPEAK UP)
+  1. Storage & Databases > KV > Create: nome  OMAGGI   -> copia l'ID del namespace.
+  2. Workers & Pages > Create > importa questo repo GitHub, root directory  worker/
+     (oppure Create Worker > Edit code e incolla worker.js).
+  3. Nel Worker: Settings > Bindings > KV namespace: variabile  OMAGGI  -> il namespace creato.
+     Se usi wrangler.toml, metti l'ID al posto di INSERIRE_ID_NAMESPACE_KV.
+  4. Settings > Variables and Secrets > aggiungi il segreto  PIN  (es. 4-6 cifre): e' il codice
+     che la pagina chiede una volta sola a chi la apre.
+  5. L'indirizzo del Worker (es. https://omaggi-dav.dchoban96.workers.dev) va scritto nella riga
+     window.OMAGGI_API = '...'  in cima a /omaggi/index.html.
+
+COME FUNZIONA
+  GET    /api/conferme            tutte le conferme
+  PUT    /api/conferme/<codice>   salva la conferma di un cliente {items:[...], altro, by}
+  DELETE /api/conferme/<codice>   rimuove la conferma
+  GET/PUT /api/costi              valori unitari dei regali
+  Ogni chiamata porta l'header X-Pin con il PIN. Senza PIN giusto: 401.
+
+  La pagina ricarica le conferme ogni 30 secondi e quando torna in primo piano,
+  quindi le modifiche degli altri compaiono entro mezzo minuto.

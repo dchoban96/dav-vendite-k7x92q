@@ -1,0 +1,10 @@
+name = "omaggi-dav"
+main = "worker.js"
+compatibility_date = "2026-10-01"
+
+# Archivio delle conferme. L'id si ottiene creando il namespace "OMAGGI" in Cloudflare (Storage & Databases > KV).
+[[kv_namespaces]]
+binding = "OMAGGI"
+id = "INSERIRE_ID_NAMESPACE_KV"
+
+# Il PIN va impostato come segreto del Worker (Settings > Variables and Secrets > PIN), non qui.
