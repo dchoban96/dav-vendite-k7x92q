@@ -309,7 +309,7 @@ const Store={mode:'local',data:{},db:null,uid:null,chain:{},
   db.doc('impostazioni/costi').onSnapshot(s=>{if(s.exists&&s.data().c){costs=Object.assign({},DEFAULT_COSTS,s.data().c);render();}},()=>{});
  },
  /* --- modalita' servizio condiviso (Cloudflare Worker) --- */
- api:null,pin:null,who:null,timer:null,
+ api:null,pin:null,who:null,timer:null,recent:{},   /* recent[c] = {t, doc|null}: modifiche locali degli ultimi 2 minuti, tenute finche' l'archivio non le riflette */
  async initApi(){ this.mode='api'; this.api=String(window.OMAGGI_API).replace(/\/+$/,''); this.pin=LS.get('om26_pin',null); this.who=LS.get('om26_who',null);
   this.data=LS.get('om26_conf_cache',{}); render();
   if(!this.pin||!this.who){ askAccess(); return; }
@@ -319,7 +319,9 @@ const Store={mode:'local',data:{},db:null,uid:null,chain:{},
  },
  async call(method,path,body){ const r=await fetch(this.api+path,{method,headers:Object.assign({'X-Pin':this.pin||''},body?{'Content-Type':'application/json'}:{}),body:body?JSON.stringify(body):undefined});
   if(r.status===401){ throw Object.assign(new Error('pin'),{code:'pin'}); } if(!r.ok) throw Object.assign(new Error('http '+r.status),{code:'http'}); return r.json(); },
- async refresh(first){ try{ const j=await this.call('GET','/api/conferme'); this.data=j.conferme||{}; LS.set('om26_conf_cache',this.data);
+ async refresh(first){ try{ const j=await this.call('GET','/api/conferme'); const d=Object.assign({},j.conferme||{}); const now=Date.now();
+   for(const c of Object.keys(this.recent)){ const r=this.recent[c]; if(now-r.t>120000){delete this.recent[c];continue;} if(r.doc){ if(!d[c]||(d[c].at||'')<(r.doc.at||'')) d[c]=r.doc; } else { if(d[c]&&(d[c].at||'')<r.iso) delete d[c]; } }
+   this.data=d; LS.set('om26_conf_cache',this.data);
    const k=await this.call('GET','/api/costi'); if(k.c&&Object.keys(k.c).length) costs=Object.assign({},DEFAULT_COSTS,k.c);
    $('sync').textContent='✓ Conferme condivise online · '+esc(this.who||''); render(); }
   catch(e){ if(e.code==='pin'){ this.pin=null; LS.set('om26_pin',null); askAccess('PIN non valido'); } else $('sync').textContent=(first?'Conferme non caricate: ':'Aggiornamento non riuscito: ')+'controlla la connessione'; } },
@@ -328,12 +330,12 @@ const Store={mode:'local',data:{},db:null,uid:null,chain:{},
   const body={c:Object.assign({},costs)}; this.chain.__c=(this.chain.__c||Promise.resolve()).then(()=>this.db.doc('impostazioni/costi').set(body)).catch(e=>toast('Costi non salvati: '+(e&&e.code||'errore'))); },
  save(c,obj){ this.data=Object.assign({},this.data,{[c]:obj});
   if(this.mode==='local'){LS.set('om26_conf',this.data);return Promise.resolve();}
-  if(this.mode==='api'){ LS.set('om26_conf_cache',this.data); const p=(this.chain[c]||Promise.resolve()).then(()=>this.call('PUT','/api/conferme/'+c,{items:obj.items,altro:obj.altro,by:this.who})).then(j=>{if(j&&j.doc){this.data=Object.assign({},this.data,{[c]:j.doc});render();}}).catch(e=>{toast(e.code==='pin'?'PIN non valido':'Conferma non salvata: controlla la connessione');}); this.chain[c]=p; return p; }
+  if(this.mode==='api'){ LS.set('om26_conf_cache',this.data); this.recent[c]={t:Date.now(),doc:obj}; const p=(this.chain[c]||Promise.resolve()).then(()=>this.call('PUT','/api/conferme/'+c,{items:obj.items,altro:obj.altro,by:this.who})).then(j=>{if(j&&j.doc){this.recent[c]={t:Date.now(),doc:j.doc};this.data=Object.assign({},this.data,{[c]:j.doc});render();}}).catch(e=>{toast(e.code==='pin'?'PIN non valido':'Conferma non salvata: controlla la connessione');}); this.chain[c]=p; return p; }
   const p=(this.chain[c]||Promise.resolve()).then(()=>this.db.doc('conferme/'+c).set(obj)).catch(e=>{toast('Conferma non salvata: '+(e&&e.code||'errore'));});
   this.chain[c]=p; return p; },
  remove(c){ const d=Object.assign({},this.data); delete d[c]; this.data=d;
   if(this.mode==='local'){LS.set('om26_conf',this.data);return Promise.resolve();}
-  if(this.mode==='api'){ LS.set('om26_conf_cache',this.data); const p=(this.chain[c]||Promise.resolve()).then(()=>this.call('DELETE','/api/conferme/'+c)).catch(()=>toast('Operazione non riuscita: controlla la connessione')); this.chain[c]=p; return p; }
+  if(this.mode==='api'){ LS.set('om26_conf_cache',this.data); this.recent[c]={t:Date.now(),doc:null,iso:new Date().toISOString()}; const p=(this.chain[c]||Promise.resolve()).then(()=>this.call('DELETE','/api/conferme/'+c)).catch(()=>toast('Operazione non riuscita: controlla la connessione')); this.chain[c]=p; return p; }
   const p=(this.chain[c]||Promise.resolve()).then(()=>this.db.doc('conferme/'+c).delete()).catch(e=>{toast('Operazione non riuscita: '+(e&&e.code||'errore'));});
   this.chain[c]=p; return p; }
 };
