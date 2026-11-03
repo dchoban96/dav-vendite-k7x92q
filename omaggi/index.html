@@ -262,15 +262,14 @@ tr.todo .ststate{color:var(--todoT)} tr.done .ststate{color:var(--doneT)}
   <label>Limite regalo (% del fatturato YTD)<input type="number" id="sCap" step="0.1" min="0"></label>
   <label>Sotto questo fatturato (€)…<input type="number" id="sCapU" step="1000" min="0"></label>
   <label>…limite fisso (€)<input type="number" id="sCapF" step="5" min="0"></label>
-  <label class="chk" style="flex-direction:row;align-items:center;margin-top:18px"><input type="checkbox" id="sSost"> Panettone al posto delle praline</label>
+  <input type="checkbox" id="sSost" hidden>
  </div>
  <ul class="rtext">
-  <li><b>Kit base</b> sopra la soglia: attrezzatura + magliette. Chi nel 2025 ha avuto polo o grembiule li riceve al posto delle magliette.</li>
-  <li><b>A</b>: kit + salmone intero · <b>B</b>: kit + salmone 1 kg · <b>C</b>: kit + parmigiano. Chi nel 2025 ha avuto olio, prosciutto o bresaola li riceve di nuovo.</li>
-  <li><b>D</b>: kit + panettone · <b>E</b>: solo kit. Panettone anche a chi nel 2025 aveva panettone o praline.</li>
-  <li><b>Andamento</b> = solo andamento del fatturato YTD 2026 contro YTD 2025, uguale per tutti: <b>Crescita</b> da +10%, <b>Calo</b> da −10%, <b>Stabile</b> in mezzo, <b>Nuovo</b> se non comprava nel 2025, <b>Perso</b> se non compra da agosto–ottobre 2026.</li>
-  <li><b>Limite</b>: il valore stimato del regalo non può superare lo 0,3% del fatturato YTD del cliente; per i clienti sotto i 10.000 € il limite è fisso a 30 €. Oltre il limite la conferma richiede il PIN di sblocco e resta segnata come "oltre limite". Attrezzatura e panettone contano solo se hanno un valore.</li>
-  <li><b>Premium aggiunto</b> a chi l'anno scorso non l'aveva solo se è in fascia A–C <b>e</b> in crescita. Chi aveva solo il parmigiano e sale in A–B in crescita passa al salmone. <b>Premium tolto</b> solo se è in fascia D–E <b>e</b> in calo. Negli altri casi resta il livello del 2025: la nota della scheda dice cosa è cambiato. Le soglie cambiano solo i clienti non ancora confermati.</li>
+  <li><b>Kit per fascia</b> (fatturato YTD): <b>E</b> 1 attrezzatura · <b>D</b> 1 attrezzatura, 1 grembiule, 1 maglietta · <b>C</b> come D + 1 polo · <b>B</b> 1 attrezzatura, 2 grembiuli, 2 magliette, 1 polo · <b>A</b> come B + salmone, crudo oppure olio (proposto quello avuto nel 2025, altrimenti il salmone).</li>
+  <li><b>Panettone</b> solo a chi l'ha ricevuto nel 2025. Praline e cioccolatini non più previsti.</li>
+  <li><b>Andamento</b> = solo fatturato YTD 2026 contro YTD 2025: <b>Crescita</b> da +10%, <b>Calo</b> da −10%, <b>Stabile</b> in mezzo, <b>Nuovo</b> se non comprava nel 2025, <b>Perso</b> se non compra da agosto–ottobre 2026 (nessun omaggio proposto).</li>
+  <li><b>Limite</b>: il valore stimato del regalo non può superare lo 0,3% del fatturato YTD; sotto i 10.000 € il limite è fisso a 30 €. Oltre il limite la conferma richiede il PIN di sblocco.</li>
+  <li>Le regole cambiano solo i clienti non ancora confermati; quantità e regali si possono modificare su ogni scheda.</li>
  </ul>
  <button class="btn ghost" id="reset" type="button" style="margin-top:6px">Ripristina valori iniziali</button>
 </details>
@@ -322,35 +321,25 @@ function trendOf(r,S){
   const p=Math.round((r.y26/r.y25-1)*100), th=S.trend||10;   /* stesso arrotondamento della % mostrata */
   return p>=th?'Crescita':p<=-th?'Calo':'Stabile';
 }
+/* kit per fascia (quantita'): deciso a novembre 2026 */
+const KIT={E:{attrezzatura:1},D:{attrezzatura:1,grembiule:1,magliette:1},C:{attrezzatura:1,grembiule:1,magliette:1,polo:1},
+ B:{attrezzatura:1,grembiule:2,magliette:2,polo:1},A:{attrezzatura:1,grembiule:2,magliette:2,polo:1}};
+const PREM_A=['salmone_intero','prosciutto','olio'];   /* fascia A: uno dei tre */
 function suggest(r,S){
-  const g=r.g||{}, had=Object.keys(g).length>0, p25=PREM.filter(k=>g[k]!=null);
+  const g=r.g||{}, had=Object.keys(g).length>0;
   const t=tierOf(r.y26,S), st=trendOf(r,S); let items=[], note=[]; const q={};
   const show=had||(t!=='-'&&r.m3>0);
   if(!(r.m3>0)) note.push('nessun acquisto ago-ott 2026: nessun omaggio, da valutare');
   else if(t==='-') note.push('fatturato YTD sotto soglia: nessun omaggio');
   else{
-    items.push('attrezzatura');
-    const pg=g.polo!=null||g.grembiule!=null;
-    if(!pg||g.magliette!=null) items.push('magliette');
-    if(g.polo!=null) items.push('polo'); if(g.grembiule!=null) items.push('grembiule');
-    const up=st==='Crescita'||st==='Nuovo', down=st==='Calo';
-    if('ABC'.includes(t)){
-      if(p25.length){
-        let list=p25.slice();
-        if(up&&'AB'.includes(t)&&list.includes('parmigiano')&&!list.includes('salmone')){ list=list.filter(k=>k!=='parmigiano'); list.push('salmone'); note.push('parmigiano 2025 alzato a salmone: fascia '+t+' e fatturato in crescita'); }
-        list.forEach(k=>items.push(k==='salmone'?(t==='A'?'salmone_intero':'salmone_1kg'):k));
-      }
-      else if(!had||up){ items.push(t==='A'?'salmone_intero':t==='B'?'salmone_1kg':'parmigiano'); if(had) note.push('premium aggiunto: fascia '+t+' e fatturato in crescita'); }
-      else note.push('fascia '+t+' ma fatturato '+(down?'in calo':'stabile')+': premium non aggiunto');
-    } else if(p25.length){
-      if(!down){ p25.forEach(k=>items.push(k==='salmone'?'salmone_1kg':k)); note.push('fascia '+t+' ma fatturato non in calo: tiene il premium 2025'); }
-      else note.push('premium 2025 tolto: fascia '+t+' e fatturato in calo');
+    Object.entries(KIT[t]).forEach(([k,n])=>{items.push(k);if(n>1)q[k]=n;});
+    if(t==='A'){
+      const p=g.salmone!=null?'salmone_intero':g.prosciutto!=null?'prosciutto':g.olio!=null?'olio':'salmone_intero';
+      items.push(p);
+      note.push((p==='salmone_intero'&&g.salmone==null)?'premium: salmone, crudo o olio (proposto salmone)':'premium come nel 2025 ('+ITEMS[p].l.toLowerCase()+')');
     }
-    if(t==='D'||g.panettone!=null||(g.praline!=null&&S.sost)) items.push('panettone');
-    items=[...new Set(items)];
-    ['magliette','attrezzatura','polo','grembiule'].forEach(k=>{const n=Math.round(g[k]||0);if(items.includes(k)&&n>1)q[k]=Math.min(n,99);});
-    if(g.praline!=null) note.push('praline 2025 tolte'+(S.sost?' → panettone':''));
-    if(g.salame!=null) note.push('salame 2025 non più disponibile');
+    if(g.panettone!=null){ items.push('panettone'); note.push('panettone come nel 2025'); }
+    if(g.praline!=null) note.push('praline 2025 non più previste');
     if(!had) note.push('nessun omaggio nel 2025');
   }
   return {tier:t,items,q,st,note:note.join('; '),show};
@@ -365,7 +354,7 @@ const ICON=Object.fromEntries(STS);
 const VCLS={Crescita:'v-up',Nuovo:'v-up',Stabile:'v-ok',Calo:'v-down',Perso:'v-lost'};
 const VVAR={'v-up':'--vUp','v-ok':'--vOk','v-down':'--vDown','v-lost':'--vLost'};
 const LS={get(k,d){try{const v=localStorage.getItem(k);return v==null?d:JSON.parse(v)}catch(e){return d}},set(k,v){try{localStorage.setItem(k,JSON.stringify(v))}catch(e){}}};
-let S=Object.assign({},DEFAULTS,LS.get('om26_S4',{}));
+let S=Object.assign({},DEFAULTS,LS.get('om26_S5',{}));
 /* limite regalo: % del fatturato YTD; oltre il limite serve il PIN di sblocco (salvato solo come impronta SHA-256) */
 const UNLOCK_HASH='0e0d08df6565c9b0081e79e4be3aba1da16b74306010864a3aa5e9e90a30e92f';
 const capOf=r=>(S.capFlat>0&&r.y26<S.capUnder)?S.capFlat:(S.cap>0?r.y26*S.cap/100:Infinity);
@@ -451,9 +440,9 @@ STS.forEach(([s,i])=>$('fS').insertAdjacentHTML('beforeend',`<option value="${s}
 const savedF=LS.get('om26_filters',{});['fA','fT','fS','fC'].forEach(id=>{if(savedF[id]!=null)$(id).value=savedF[id];});
 function syncInputs(){$('sA').value=S.A;$('sB').value=S.B;$('sC').value=S.C;$('sD').value=S.D;$('sMin').value=S.min;$('sTr').value=S.trend;$('sCap').value=S.cap;$('sCapU').value=S.capUnder;$('sCapF').value=S.capFlat;$('sSost').checked=!!S.sost;}
 syncInputs();
-['sA','sB','sC','sD','sMin','sTr','sCap','sCapU','sCapF'].forEach(id=>$(id).addEventListener('change',()=>{const k={sA:'A',sB:'B',sC:'C',sD:'D',sMin:'min',sTr:'trend',sCap:'cap',sCapU:'capUnder',sCapF:'capFlat'}[id];const v=+$(id).value;if(!isNaN(v))S[k]=v;LS.set('om26_S4',S);draft=null;render();}));
-$('sSost').addEventListener('change',()=>{S.sost=$('sSost').checked;LS.set('om26_S4',S);draft=null;render();});
-$('reset').addEventListener('click',()=>{S=Object.assign({},DEFAULTS);LS.set('om26_S4',S);syncInputs();draft=null;render();});
+['sA','sB','sC','sD','sMin','sTr','sCap','sCapU','sCapF'].forEach(id=>$(id).addEventListener('change',()=>{const k={sA:'A',sB:'B',sC:'C',sD:'D',sMin:'min',sTr:'trend',sCap:'cap',sCapU:'capUnder',sCapF:'capFlat'}[id];const v=+$(id).value;if(!isNaN(v))S[k]=v;LS.set('om26_S5',S);draft=null;render();}));
+$('sSost').addEventListener('change',()=>{S.sost=$('sSost').checked;LS.set('om26_S5',S);draft=null;render();});
+$('reset').addEventListener('click',()=>{S=Object.assign({},DEFAULTS);LS.set('om26_S5',S);syncInputs();draft=null;render();});
 ['fA','fT','fS','fC'].forEach(id=>$(id).addEventListener('change',()=>{const f={};['fA','fT','fS','fC'].forEach(x=>f[x]=$(x).value);LS.set('om26_filters',f);draft=null;render();}));
 $('q').addEventListener('input',()=>{draft=null;render();});
 $('theme').addEventListener('click',()=>{const r=document.documentElement;const dark=r.getAttribute('data-theme')?r.getAttribute('data-theme')==='dark':matchMedia('(prefers-color-scheme: dark)').matches;r.setAttribute('data-theme',dark?'light':'dark');render();});
