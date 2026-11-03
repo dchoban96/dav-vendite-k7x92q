@@ -1,7 +1,7 @@
 // Omaggi DAV - archivio condiviso delle conferme (Cloudflare Worker + KV)
 //
 // Chiavi KV:
-//   conf:<codice cliente>  -> metadata {ok, items, altro, at, by}   (la lista restituisce tutto in una chiamata)
+//   conf:<codice cliente>  -> metadata {ok, items, q, altro, at, by, over}   (la lista restituisce tutto in una chiamata)
 //   costi                  -> {c:{articolo: valore}}
 //
 // Tutte le richieste richiedono l'header  X-Pin: <PIN>  uguale al segreto PIN del Worker.
@@ -49,6 +49,8 @@ export default {
         at: new Date().toISOString(),
         by: typeof body.by === "string" && body.by.trim() ? body.by.trim().slice(0, 40) : null,
         over: body.over === true,
+        q: Object.fromEntries(Object.entries(body.q && typeof body.q === "object" ? body.q : {})
+             .filter(([k, v]) => /^[a-z_0-9]{1,40}$/.test(k) && Number.isInteger(v) && v > 1 && v < 100).slice(0, 20)),
       };
       await env.OMAGGI.put("conf:" + m[1], "1", { metadata: doc });
       return json({ ok: true, doc });
