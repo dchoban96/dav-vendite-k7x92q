@@ -297,7 +297,7 @@ tr.todo .ststate{color:var(--todoT)} tr.done .ststate{color:var(--doneT)}
   <div class="tblwrap" style="max-height:680px;overflow:auto"><table class="tbl-main" id="tMain"></table></div>
  </div>
 </section>
-<div class="foot">Fonti: dashboard agenti (fatturato), Omaggi_Natalizi_Dic2025.xlsx (omaggi 2025 da MOVMAG e PDF DDT). Dati aggiornati al 31/10/2026 (generato il 03/11/2026).</div>
+<div class="foot">Fonti: dashboard agenti (fatturato), Omaggi_Natalizi_Dic2025.xlsx (omaggi 2025 da MOVMAG e PDF DDT). Dati aggiornati al 31/10/2026 (generato il 04/11/2026).</div>
 </div>
 
 <script>
@@ -477,7 +477,7 @@ function compute(){
 }
 function filtered(all){const a=$('fA').value,t=$('fT').value,s=$('fS').value,c=$('fC').value,q=$('q').value.trim().toLowerCase();
  return all.filter(r=>(!a||r.a===a)&&(!t||r.tier===t)&&(!s||r.st===s)&&(!c||(c==='done'?r.ok:!r.ok))&&(!q||r.n.toLowerCase().includes(q)||r.c.includes(q)));}
-function propText(items,altro,q){const a=items.map(i=>ITEMS[i].l+(qn(q,i)>1?' x'+qn(q,i):''));if(altro)a.push('Altro: '+altro);return a.join(', ');}
+function propText(items,altro,q){const a=items.map(i=>qn(q,i)+'× '+ITEMS[i].l);if(altro)a.push('Altro: '+altro);return a.join(', ');}
 function tierBadge(t){return t&&t!=='-'?`<span class="tier" style="background:var(--t${t});color:var(--t${t}t)">${t}</span>`:'<span class="muted">–</span>';}
 function vpill(st){return `<span class="vpill ${VCLS[st]||''}">${ICON[st]||''} ${esc(st)}</span>`;}
 
