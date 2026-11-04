@@ -350,7 +350,9 @@ const GIFT_FIX={
  '140100186':{via:NOSAL,note:'salmone tolto (deciso a mano)'} /* Panificio Nana Mirco */,
  '140100436':{add:{panettone_rinaldi:1},note:'panettone Rinaldi (deciso a mano)'} /* Bar Gelateria Valentino */,
  '140100260':{none:true}, /* Gherardi */ '140100616':{none:true}, /* Fontana Alimentari */ '140100710':{none:true}, /* Deag */
- '140100632':{none:true}, /* Sogel */ '140100266':{none:true} /* Maggengo Valtellina */
+ '140100632':{none:true}, /* Sogel */ '140100266':{none:true} /* Maggengo Valtellina */,
+ '140101342':{none:true}, /* Crameri Food Logistics */ '140100869':{none:true}, /* Gastroval */
+ '140100149':{only:{panettone_rinaldi:1},note:'solo panettone Rinaldi (deciso a mano)'} /* Gelateria Folini */
 };
 /* panettone Rinaldi al posto del panettone generico */
 ['140101627','140101360','140100324','140101439','140100348','140100930','140101509','140100986','140100235','140101635','140101150','140100572','140100808','140100637','140101018','140101628'].forEach(c=>{GIFT_FIX[c]={add:{panettone_rinaldi:1},note:'panettone Rinaldi (deciso a mano)'};});
@@ -373,7 +375,8 @@ function suggest(r,S){
     if(t!==t0) note.unshift('fascia '+t+' impostata a mano (da fatturato sarebbe '+(t0==='-'?'sotto soglia':t0)+')');
     /* panettone: solo Panettone Rinaldi ai clienti scelti a mano (GIFT_FIX) */
     const fx=GIFT_FIX[r.c];
-    if(fx&&fx.none){ items=[]; Object.keys(q).forEach(k=>delete q[k]); note.length=0; note.push('nessun omaggio (deciso a mano)'); }
+    if(fx&&fx.only){ items=Object.keys(fx.only); Object.keys(q).forEach(k=>delete q[k]); Object.entries(fx.only).forEach(([k,n])=>{if(n>1)q[k]=n;}); note.length=0; note.push(fx.note); }
+    else if(fx&&fx.none){ items=[]; Object.keys(q).forEach(k=>delete q[k]); note.length=0; note.push('nessun omaggio (deciso a mano)'); }
     else if(fx){ const gone=items.filter(k=>(fx.via||[]).includes(k));
       items=items.filter(k=>!(fx.via||[]).includes(k)); gone.forEach(k=>delete q[k]);
       Object.entries(fx.add||{}).forEach(([k,n])=>{ if(!items.includes(k)) items.push(k); if(n>1) q[k]=n; else delete q[k]; });
