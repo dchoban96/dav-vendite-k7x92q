@@ -345,7 +345,8 @@ const GIFT_FIX={
  '140100113':{via:NOSAL,add:{prosciutto:1}}, /* Beta Group */ '140100237':{via:NOSAL,add:{prosciutto:1}}, /* La Milanese */
  '140100416':{via:NOSAL,add:{prosciutto:1}}  /* Steinbock */,
  '140100327':{via:NOSAL,add:{prosciutto:1}}, /* Pasticceria Svizzera */ '140101684':{add:{bresaola:1}} /* F.lli Bulferi */,
- '140100957':{via:NOSAL,add:{olio:1}} /* Az. Agr. Cascina Pian di Spagna */
+ '140100957':{via:NOSAL,add:{olio:1}} /* Az. Agr. Cascina Pian di Spagna */,
+ '140100648':{none:true} /* La Favola: nessun omaggio */
 };
 /* panettone Rinaldi al posto del panettone generico */
 ['140101627','140101360','140100324','140101439','140100348','140100930','140101509','140100986','140100235','140101635','140101150','140100572','140100808','140100637','140101018','140101628'].forEach(c=>{GIFT_FIX[c]={add:{panettone_rinaldi:1},note:'panettone Rinaldi (deciso a mano)'};});
@@ -368,7 +369,8 @@ function suggest(r,S){
     if(t!==t0) note.unshift('fascia '+t+' impostata a mano (da fatturato sarebbe '+(t0==='-'?'sotto soglia':t0)+')');
     /* panettone: solo Panettone Rinaldi ai clienti scelti a mano (GIFT_FIX) */
     const fx=GIFT_FIX[r.c];
-    if(fx){ const gone=items.filter(k=>(fx.via||[]).includes(k));
+    if(fx&&fx.none){ items=[]; Object.keys(q).forEach(k=>delete q[k]); note.length=0; note.push('nessun omaggio (deciso a mano)'); }
+    else if(fx){ const gone=items.filter(k=>(fx.via||[]).includes(k));
       items=items.filter(k=>!(fx.via||[]).includes(k)); gone.forEach(k=>delete q[k]);
       Object.entries(fx.add||{}).forEach(([k,n])=>{ if(!items.includes(k)) items.push(k); if(n>1) q[k]=n; else delete q[k]; });
       for(let i=note.length-1;i>=0;i--) if(/premium|salmone 1 kg/.test(note[i])&&gone.some(k=>/salmone/.test(k))||(/panettone come/.test(note[i])&&gone.includes('panettone'))) note.splice(i,1);
