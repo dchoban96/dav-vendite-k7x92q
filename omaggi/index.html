@@ -330,6 +330,17 @@ const PREM_A=['salmone_intero','prosciutto','olio'];   /* fascia A: uno dei tre 
 const TIER_FIX={'140101746':'B','140101106':'A','140100048':'A','140101656':'B','140101262':'B','140100347':'B','140101094':'B','140101584':'B'};
 /* regalo speciale deciso a mano al posto di quello automatico */
 const PREM_FIX={'140101449':'formaggi'};
+/* correzioni a mano dei regali speciali (4/11/2026): via = articoli tolti, add = articolo:quantita' */
+const NOSAL=['salmone_intero','salmone_1kg'];
+const GIFT_FIX={
+ '140101724':{via:NOSAL,add:{olio:2}}, /* Delizia */      '140100402':{add:{olio:1}},           /* Salvetti */
+ '140101063':{via:NOSAL,add:{olio:2}}, /* Bivio */        '140100383':{add:{olio:1}},           /* Rigamonti */
+ '140100212':{via:NOSAL,add:{olio:1}}, /* Pane con l'Uva */'140100822':{via:NOSAL,add:{olio:1}}, /* Alexander */
+ '140101106':{add:{olio:1}},           /* Del Togno */    '140100464':{via:NOSAL,add:{olio:1}}, /* Goloseria Galli */
+ '140100644':{via:NOSAL,add:{olio:1}}, /* Spluga */       '140101573':{via:NOSAL,add:{olio:1}}, /* Minimarket Nani */
+ '140100513':{via:NOSAL,add:{olio:1}}, /* Val di Ratt */  '140101561':{via:NOSAL,add:{olio:1}}, /* Pasta Fresca Canali */
+ '140100179':{add:{olio:1}},           /* Guanella Fabio */'140100435':{add:{olio:1}}            /* Al Vecchio Mulino */
+};
 function suggest(r,S){
   const g=r.g||{}, had=Object.keys(g).length>0;
   const t0=tierOf(r.y26,S), t=(TIER_FIX[r.c]&&r.m3>0)?TIER_FIX[r.c]:t0, st=trendOf(r,S); let items=[], note=[]; const q={};
@@ -347,6 +358,12 @@ function suggest(r,S){
     else if(t==='B'){ items.push('salmone_1kg'); note.push('fascia B: salmone 1 kg'); }
     else if(t==='C'&&g.salmone!=null){ items.push('salmone_1kg'); note.push('salmone 1 kg come nel 2025'); }
     if(t!==t0) note.unshift('fascia '+t+' impostata a mano (da fatturato sarebbe '+(t0==='-'?'sotto soglia':t0)+')');
+    const fx=GIFT_FIX[r.c];
+    if(fx){ const gone=items.filter(k=>(fx.via||[]).includes(k));
+      items=items.filter(k=>!(fx.via||[]).includes(k)); gone.forEach(k=>delete q[k]);
+      Object.entries(fx.add||{}).forEach(([k,n])=>{ if(!items.includes(k)) items.push(k); if(n>1) q[k]=n; else delete q[k]; });
+      for(let i=note.length-1;i>=0;i--) if(/premium|salmone 1 kg/.test(note[i])) note.splice(i,1);
+      note.push((gone.length?'salmone tolto, ':'')+Object.entries(fx.add||{}).map(([k,n])=>n+'× '+ITEMS[k].l.toLowerCase()).join(', ')+' (deciso a mano)'); }
     if(g.panettone!=null){ items.push('panettone'); note.push('panettone come nel 2025'); }
     if(g.praline!=null) note.push('praline 2025 non più previste');
     if(!had) note.push('nessun omaggio nel 2025');
