@@ -307,7 +307,7 @@ const ITEMS={
  attrezzatura:{l:'Attrezzatura',u:'conf.'}, magliette:{l:'Magliette',u:'conf.'}, polo:{l:'Polo',u:'pz'}, grembiule:{l:'Grembiule',u:'pz'},
  panettone:{l:'Panettone',u:'pz'}, salmone_intero:{l:'Salmone intero',u:'~1,5-2 kg'}, salmone_1kg:{l:'Salmone 1 kg',u:'pz'},
  parmigiano:{l:'Parmigiano',u:'~1 kg'}, olio:{l:'Olio EVO 5 lt',u:'latta'}, prosciutto:{l:'Prosciutto crudo',u:'metà'},
- bresaola:{l:'Bresaola',u:'metà'}, formaggi:{l:'Formaggi nostrani',u:'selezione'}
+ bresaola:{l:'Bresaola',u:'metà'}, formaggi:{l:'Formaggi nostrani',u:'selezione'}, panettone_rinaldi:{l:'Panettone Rinaldi',u:'pz'}
 };
 const G25={magliette:'magliette',attrezzatura:'attrezzatura',praline:'praline',polo:'polo',grembiule:'grembiule',panettone:'panettone',
  salmone:'salmone',parmigiano:'parmigiano',olio:'olio EVO',prosciutto:'prosciutto',bresaola:'bresaola',salame:'salame',nd:'omaggio non dettagliato'};
@@ -346,6 +346,8 @@ const GIFT_FIX={
  '140100416':{via:NOSAL,add:{prosciutto:1}}  /* Steinbock */,
  '140100327':{via:NOSAL,add:{prosciutto:1}}, /* Pasticceria Svizzera */ '140101684':{add:{bresaola:1}} /* F.lli Bulferi */
 };
+/* panettone Rinaldi al posto del panettone generico */
+['140101627','140101360','140100324','140101439','140100348','140100930','140101509','140100986','140100235','140101635','140101150','140100572','140100808','140100637','140101018','140101628'].forEach(c=>{GIFT_FIX[c]={via:['panettone'],add:{panettone_rinaldi:1},note:'panettone Rinaldi al posto del panettone (deciso a mano)'};});
 function suggest(r,S){
   const g=r.g||{}, had=Object.keys(g).length>0;
   const t0=tierOf(r.y26,S), t=(TIER_FIX[r.c]&&r.m3>0)?TIER_FIX[r.c]:t0, st=trendOf(r,S); let items=[], note=[]; const q={};
@@ -363,13 +365,13 @@ function suggest(r,S){
     else if(t==='B'){ items.push('salmone_1kg'); note.push('fascia B: salmone 1 kg'); }
     else if(t==='C'&&g.salmone!=null){ items.push('salmone_1kg'); note.push('salmone 1 kg come nel 2025'); }
     if(t!==t0) note.unshift('fascia '+t+' impostata a mano (da fatturato sarebbe '+(t0==='-'?'sotto soglia':t0)+')');
+    if(g.panettone!=null){ items.push('panettone'); note.push('panettone come nel 2025'); }
     const fx=GIFT_FIX[r.c];
     if(fx){ const gone=items.filter(k=>(fx.via||[]).includes(k));
       items=items.filter(k=>!(fx.via||[]).includes(k)); gone.forEach(k=>delete q[k]);
       Object.entries(fx.add||{}).forEach(([k,n])=>{ if(!items.includes(k)) items.push(k); if(n>1) q[k]=n; else delete q[k]; });
-      for(let i=note.length-1;i>=0;i--) if(/premium|salmone 1 kg/.test(note[i])) note.splice(i,1);
-      note.push((gone.length?'salmone tolto, ':'')+Object.entries(fx.add||{}).map(([k,n])=>n+'× '+ITEMS[k].l.toLowerCase()).join(', ')+' (deciso a mano)'); }
-    if(g.panettone!=null){ items.push('panettone'); note.push('panettone come nel 2025'); }
+      for(let i=note.length-1;i>=0;i--) if(/premium|salmone 1 kg/.test(note[i])&&gone.some(k=>/salmone/.test(k))||(/panettone come/.test(note[i])&&gone.includes('panettone'))) note.splice(i,1);
+      note.push(fx.note||((gone.length?gone.map(k=>ITEMS[k].l.toLowerCase()).join(', ')+' tolto, ':'')+Object.entries(fx.add||{}).map(([k,n])=>n+'× '+ITEMS[k].l.toLowerCase()).join(', ')+' (deciso a mano)')); }
     if(g.praline!=null) note.push('praline 2025 non più previste');
     if(!had) note.push('nessun omaggio nel 2025');
   }
@@ -401,7 +403,7 @@ function askUnlock(host,limit,value){return new Promise(res=>{const old=host.que
  ok.onclick=async()=>{if(await checkUnlock(inp.value))done(true);else{inp.classList.add('err');d.querySelector('.emsg').textContent='PIN di sblocco non valido.';inp.value='';inp.focus();}};
  inp.addEventListener('keydown',e=>{if(e.key==='Enter'){e.preventDefault();ok.click();}});no.onclick=()=>done(false);});}
 /* valore stimato: prezzo di listino medio DAV dallo storico vendite (€/kg o €/pz) x peso medio dei regali 2025 */
-const DEFAULT_COSTS={salmone_intero:36.0,salmone_1kg:17.84,parmigiano:13.1,olio:17.6,prosciutto:51.3,bresaola:56.8,polo:10.33,grembiule:7.08,magliette:5.54};
+const DEFAULT_COSTS={panettone_rinaldi:10,salmone_intero:36.0,salmone_1kg:17.84,parmigiano:13.1,olio:17.6,prosciutto:51.3,bresaola:56.8,polo:10.33,grembiule:7.08,magliette:5.54};
 let costs=Object.assign({},DEFAULT_COSTS,LS.get('om26_costs2',{}));
 const qn=(q,k)=>Math.max(1,Math.min(99,Math.round((q&&q[k])||1)));
 function valueOf(items,q){let v=0;const miss=[];items.forEach(k=>{const c=costs[k];if(c>0)v+=c*qn(q,k);else miss.push(ITEMS[k].l.toLowerCase());});return {v,miss};}
