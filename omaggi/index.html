@@ -327,7 +327,7 @@ const KIT={E:{attrezzatura:1},D:{attrezzatura:1,grembiule:1,magliette:1},C:{attr
  B:{attrezzatura:1,grembiule:2,magliette:2,polo:1},A:{attrezzatura:1,grembiule:2,magliette:2,polo:1}};
 const PREM_A=['salmone_intero','prosciutto','olio'];   /* fascia A: uno dei tre */
 /* fasce decise a mano (novembre 2026) */
-const TIER_FIX={'140101746':'B','140101106':'A','140100048':'A','140101656':'B','140101262':'B','140100347':'B','140101094':'B','140101584':'B'};
+const TIER_FIX={'140101746':'B','140101106':'A','140100048':'A','140101656':'B','140101262':'B','140100347':'B','140101094':'B','140101584':'B','140101321':'B'};
 /* regalo speciale deciso a mano al posto di quello automatico */
 const PREM_FIX={'140101449':'formaggi'};
 /* correzioni a mano dei regali speciali (4/11/2026): via = articoli tolti, add = articolo:quantita' */
@@ -348,7 +348,9 @@ const GIFT_FIX={
  '140100957':{via:NOSAL,add:{olio:1}} /* Az. Agr. Cascina Pian di Spagna */,
  '140100648':{none:true} /* La Favola: nessun omaggio */,
  '140100186':{via:NOSAL,note:'salmone tolto (deciso a mano)'} /* Panificio Nana Mirco */,
- '140100436':{add:{panettone_rinaldi:1},note:'panettone Rinaldi (deciso a mano)'} /* Bar Gelateria Valentino */
+ '140100436':{add:{panettone_rinaldi:1},note:'panettone Rinaldi (deciso a mano)'} /* Bar Gelateria Valentino */,
+ '140100260':{none:true}, /* Gherardi */ '140100616':{none:true}, /* Fontana Alimentari */ '140100710':{none:true}, /* Deag */
+ '140100632':{none:true}, /* Sogel */ '140100266':{none:true} /* Maggengo Valtellina */
 };
 /* panettone Rinaldi al posto del panettone generico */
 ['140101627','140101360','140100324','140101439','140100348','140100930','140101509','140100986','140100235','140101635','140101150','140100572','140100808','140100637','140101018','140101628'].forEach(c=>{GIFT_FIX[c]={add:{panettone_rinaldi:1},note:'panettone Rinaldi (deciso a mano)'};});
