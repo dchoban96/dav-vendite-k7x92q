@@ -266,8 +266,8 @@ tr.todo .ststate{color:var(--todoT)} tr.done .ststate{color:var(--doneT)}
   <input type="checkbox" id="sSost" hidden>
  </div>
  <ul class="rtext">
-  <li><b>Kit per fascia</b> (fatturato YTD): <b>E</b> 1 attrezzatura · <b>D</b> 1 attrezzatura, 1 grembiule, 1 maglietta · <b>C</b> come D + 1 polo · <b>B</b> 1 attrezzatura, 2 grembiuli, 2 magliette, 1 polo · <b>A</b> come B + salmone intero, crudo oppure olio (proposto quello avuto nel 2025, altrimenti il salmone intero) · <b>B</b> + salmone 1 kg · <b>C</b> + salmone 1 kg solo a chi l'ha avuto nel 2025. Alcune fasce sono impostate a mano (vedi note); Rinaldi riceve formaggi nostrani al posto del salmone.</li>
-  <li><b>Panettone</b> solo a chi l'ha ricevuto nel 2025. Praline e cioccolatini non più previsti.</li>
+  <li><b>Kit per fascia</b> (fatturato YTD): <b>E</b> 1 attrezzatura · <b>D</b> 1 attrezzatura, 1 grembiule, 1 maglietta · <b>C</b> come D + 1 polo · <b>B</b> 1 attrezzatura, 2 grembiuli, 2 magliette, 1 polo · <b>A</b> come B + salmone intero, crudo oppure olio (proposto quello avuto nel 2025, altrimenti il salmone intero) · <b>B</b> + salmone 1 kg · <b>C</b> + salmone 1 kg solo a chi l'ha avuto nel 2025. Alcune fasce e alcuni regali speciali (olio, crudo, bresaola, formaggi) sono decisi a mano: lo dicono le note del cliente.</li>
+  <li><b>Panettone Rinaldi</b> solo ai 16 clienti scelti a mano. Praline e cioccolatini non più previsti.</li>
   <li><b>Andamento</b> = solo fatturato YTD 2026 contro YTD 2025: <b>Crescita</b> da +10%, <b>Calo</b> da −10%, <b>Stabile</b> in mezzo, <b>Nuovo</b> se non comprava nel 2025, <b>Perso</b> se non compra da agosto–ottobre 2026 (nessun omaggio proposto).</li>
   <li><b>Limite</b>: il valore stimato del regalo non può superare lo 0,3% del fatturato YTD; sotto i 10.000 € il limite è fisso a 30 €. Oltre il limite la conferma richiede il PIN di sblocco.</li>
   <li>Le regole cambiano solo i clienti non ancora confermati; quantità e regali si possono modificare su ogni scheda.</li>
@@ -347,7 +347,7 @@ const GIFT_FIX={
  '140100327':{via:NOSAL,add:{prosciutto:1}}, /* Pasticceria Svizzera */ '140101684':{add:{bresaola:1}} /* F.lli Bulferi */
 };
 /* panettone Rinaldi al posto del panettone generico */
-['140101627','140101360','140100324','140101439','140100348','140100930','140101509','140100986','140100235','140101635','140101150','140100572','140100808','140100637','140101018','140101628'].forEach(c=>{GIFT_FIX[c]={via:['panettone'],add:{panettone_rinaldi:1},note:'panettone Rinaldi al posto del panettone (deciso a mano)'};});
+['140101627','140101360','140100324','140101439','140100348','140100930','140101509','140100986','140100235','140101635','140101150','140100572','140100808','140100637','140101018','140101628'].forEach(c=>{GIFT_FIX[c]={add:{panettone_rinaldi:1},note:'panettone Rinaldi (deciso a mano)'};});
 function suggest(r,S){
   const g=r.g||{}, had=Object.keys(g).length>0;
   const t0=tierOf(r.y26,S), t=(TIER_FIX[r.c]&&r.m3>0)?TIER_FIX[r.c]:t0, st=trendOf(r,S); let items=[], note=[]; const q={};
@@ -365,7 +365,7 @@ function suggest(r,S){
     else if(t==='B'){ items.push('salmone_1kg'); note.push('fascia B: salmone 1 kg'); }
     else if(t==='C'&&g.salmone!=null){ items.push('salmone_1kg'); note.push('salmone 1 kg come nel 2025'); }
     if(t!==t0) note.unshift('fascia '+t+' impostata a mano (da fatturato sarebbe '+(t0==='-'?'sotto soglia':t0)+')');
-    if(g.panettone!=null){ items.push('panettone'); note.push('panettone come nel 2025'); }
+    /* panettone: solo Panettone Rinaldi ai clienti scelti a mano (GIFT_FIX) */
     const fx=GIFT_FIX[r.c];
     if(fx){ const gone=items.filter(k=>(fx.via||[]).includes(k));
       items=items.filter(k=>!(fx.via||[]).includes(k)); gone.forEach(k=>delete q[k]);
